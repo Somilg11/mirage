@@ -1,0 +1,27 @@
+{
+  "name": "backend",
+  "module": "index.ts",
+  "type": "module",
+  "private": true,
+  "devDependencies": {
+    "@types/bun": "latest",
+    "vitest": "^4.1.7",
+    "undici": "^6.2.5"
+  },
+  "scripts": {
+    "test": "vitest"
+  },
+  "peerDependencies": {
+    "typescript": "^5",
+    "db": "*"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.106.2",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "zod": "^4.4.3"
+  }
+}
