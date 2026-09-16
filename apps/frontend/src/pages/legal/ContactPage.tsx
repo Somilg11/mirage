@@ -15,7 +15,7 @@ export function ContactPage() {
       <div className="mt-8 grid gap-3 sm:grid-cols-2">
         {CHANNELS.map(({ icon: Icon, title, email, sla }) => (
           <Card key={title} className="p-5">
-            <div className="grid size-10 place-items-center rounded-xl bg-primary-soft text-primary">
+            <div className="grid size-10 place-items-center rounded-md bg-primary-soft text-primary">
               <Icon className="size-5" />
             </div>
             <div className="mt-4 font-semibold">{title}</div>
@@ -33,7 +33,7 @@ export function ContactPage() {
           href="https://github.com/Somilg11"
           target="_blank"
           rel="noopener noreferrer"
-          className="flex items-center gap-3 rounded-2xl border border-border bg-surface p-4 hover:border-border-strong"
+          className="flex items-center gap-3 rounded-lg border border-border bg-surface p-4 hover:border-border-strong"
         >
           <LifeBuoy className="size-5 text-muted" />
           <div>
@@ -45,7 +45,7 @@ export function ContactPage() {
           href="https://www.buymeacoffee.com/gsomil"
           target="_blank"
           rel="noopener noreferrer"
-          className="flex items-center gap-3 rounded-2xl border border-border bg-surface p-4 hover:border-border-strong"
+          className="flex items-center gap-3 rounded-lg border border-border bg-surface p-4 hover:border-border-strong"
         >
           <Coffee className="size-5 text-muted" />
           <div>

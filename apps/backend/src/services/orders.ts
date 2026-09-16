@@ -23,7 +23,6 @@ type PlaceOrderInput = z.output<typeof createOrderSchema>;
 type ListOrdersQuery = z.output<typeof listOrdersQuerySchema>;
 
 const MAKER_BATCH_SIZE = 200;
-const MAX_LISTED_ORDERS = 200;
 
 /** Loads resting orders that cross the taker's limit, in priority order, until enough size is found. */
 async function loadCrossingMakers(
@@ -208,16 +207,25 @@ export async function cancelOrder(userId: string, orderId: string): Promise<Orde
   return toOrderDTO(await prisma.order.findUniqueOrThrow({ where: { id: orderId }, include: { market: true } }));
 }
 
-export async function listOrders(userId: string, query: ListOrdersQuery): Promise<OrderDTO[]> {
-  const orders = await prisma.order.findMany({
+export async function listOrders(
+  userId: string,
+  query: ListOrdersQuery,
+): Promise<{ orders: OrderDTO[]; nextCursor: string | null }> {
+  const rows = await prisma.order.findMany({
     where: {
       userId,
       ...(query.status === 'open' ? { status: 'Open' as const } : {}),
+      ...(query.status === 'closed' ? { status: { in: ['Filled' as const, 'Cancelled' as const] } } : {}),
       ...(query.marketId ? { marketId: query.marketId } : {}),
     },
     include: { market: true },
     orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-    take: MAX_LISTED_ORDERS,
+    take: query.limit + 1,
+    ...(query.cursor ? { cursor: { id: query.cursor }, skip: 1 } : {}),
   });
-  return orders.map(toOrderDTO);
+  const page = rows.slice(0, query.limit);
+  return {
+    orders: page.map(toOrderDTO),
+    nextCursor: rows.length > query.limit ? (page.at(-1)?.id ?? null) : null,
+  };
 }

@@ -23,6 +23,7 @@ Trade Yes/No shares on real-world events, with price-time priority matching, esc
 
 ## Table of contents
 
+- [Documentation](#documentation)
 - [Features](#features)
 - [Screenshots](#screenshots)
 - [Architecture](#architecture)
@@ -39,6 +40,15 @@ Trade Yes/No shares on real-world events, with price-time priority matching, esc
 - [Roadmap](#roadmap)
 - [Contributing](#contributing)
 - [License](#license)
+
+## Documentation
+
+| Doc                                            | What it covers                                                                |
+| ---------------------------------------------- | ----------------------------------------------------------------------------- |
+| [docs/core.md](./docs/core.md)                 | Exchange logic: order book, matching, escrow, settlement, pricing, invariants |
+| [docs/api.md](./docs/api.md)                   | Every REST endpoint with schemas, examples, errors and pagination             |
+| [docs/architecture.md](./docs/architecture.md) | System design, data model, request flows, frontend architecture, deployment   |
+| [docs/plan.md](./docs/plan.md)                 | Roadmap: admin console, market requests, customizable content, SaaS           |
 
 ## Features
 

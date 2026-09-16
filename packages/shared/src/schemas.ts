@@ -23,7 +23,14 @@ export const splitMergeSchema = z.object({
   quantity: quantitySchema,
 });
 
+/** Opaque cursor pagination shared by every list endpoint. */
+const pageFields = {
+  cursor: z.string().min(1).max(100).optional(),
+};
+
 export const marketListQuerySchema = z.object({
+  ...pageFields,
+  limit: z.coerce.number().int().min(1).max(100).default(24),
   category: z.string().trim().min(1).max(50).optional(),
   status: z.enum(['open', 'resolved', 'all']).default('open'),
   sort: z.enum(['volume', 'newest', 'ending']).default('volume'),
@@ -35,13 +42,15 @@ export const priceHistoryQuerySchema = z.object({
 });
 
 export const listOrdersQuerySchema = z.object({
-  status: z.enum(['open', 'all']).default('all'),
+  ...pageFields,
+  limit: z.coerce.number().int().min(1).max(100).default(50),
+  status: z.enum(['open', 'all', 'closed']).default('all'),
   marketId: z.string().min(1).optional(),
 });
 
 export const paginationQuerySchema = z.object({
+  ...pageFields,
   limit: z.coerce.number().int().min(1).max(100).default(50),
-  cursor: z.string().min(1).optional(),
 });
 
 export const createMarketSchema = z.object({
@@ -65,6 +74,7 @@ export const resolveMarketSchema = z.object({
 export type CreateOrderInput = z.input<typeof createOrderSchema>;
 export type SplitMergeInput = z.infer<typeof splitMergeSchema>;
 export type MarketListQuery = z.input<typeof marketListQuerySchema>;
+export type ListOrdersQuery = z.input<typeof listOrdersQuerySchema>;
 export type PriceHistoryQuery = z.input<typeof priceHistoryQuerySchema>;
 export type CreateMarketInput = z.infer<typeof createMarketSchema>;
 export type ResolveMarketInput = z.infer<typeof resolveMarketSchema>;

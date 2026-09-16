@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { Card } from '../../components/ui/primitives';
+import { useDocumentTitle } from '../../hooks/useDocumentTitle';
 
 export interface LegalSection {
   title: string;
@@ -21,10 +22,11 @@ export function LegalPage({
   sections: LegalSection[];
   children?: ReactNode;
 }) {
+  useDocumentTitle(title);
   return (
     <div className="mx-auto max-w-3xl py-4 sm:py-8">
       <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">{eyebrow}</p>
-      <h1 className="mt-3 text-3xl font-bold tracking-tight sm:text-4xl">{title}</h1>
+      <h1 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">{title}</h1>
       {intro && <p className="mt-3 text-base leading-relaxed text-muted">{intro}</p>}
       {updated && <p className="mt-2 text-xs text-subtle">Last updated {updated}</p>}
 

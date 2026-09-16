@@ -10,7 +10,7 @@ export const ordersRouter = Router();
 ordersRouter.use(requireAuth);
 
 ordersRouter.get('/', async (req, res) => {
-  res.json({ orders: await listOrders(currentUser(req).id, parse(listOrdersQuerySchema, req.query)) });
+  res.json(await listOrders(currentUser(req).id, parse(listOrdersQuerySchema, req.query)));
 });
 
 ordersRouter.post('/', orderLimiter, async (req, res) => {

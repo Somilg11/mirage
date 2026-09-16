@@ -1,127 +1,185 @@
+import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowDownLeft, ArrowUpRight, Gift, History, Layers, Trophy, type LucideIcon } from 'lucide-react';
+import { History } from 'lucide-react';
 import type { ActivityDTO, ActivityType } from '@repo/shared';
 import { useActivity } from '../hooks/queries';
 import { cn } from '../lib/cn';
 import { formatCents, formatDateTime, formatShares, formatSignedUsd } from '../lib/format';
 import { Card, EmptyState, ErrorState, Skeleton } from '../components/ui/primitives';
-import { Button } from '../components/ui/Button';
+import { LoadMore } from '../components/ui/LoadMore';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { OutcomeBadge } from '../components/portfolio/OrderRow';
 import { RequireAuth } from '../components/portfolio/SignInPrompt';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 
-const TYPE_META: Record<ActivityType, { label: string; icon: LucideIcon; tile: string }> = {
-  buy: { label: 'Bought', icon: ArrowDownLeft, tile: 'bg-yes-soft text-yes' },
-  sell: { label: 'Sold', icon: ArrowUpRight, tile: 'bg-no-soft text-no' },
-  split: { label: 'Split', icon: Layers, tile: 'bg-primary-soft text-primary' },
-  merge: { label: 'Merged', icon: Layers, tile: 'bg-primary-soft text-primary' },
-  claim: { label: 'Daily reward', icon: Gift, tile: 'bg-warn-soft text-warn' },
-  payout: { label: 'Payout', icon: Trophy, tile: 'bg-yes-soft text-yes' },
+const TYPE_LABEL: Record<ActivityType, string> = {
+  buy: 'Buy',
+  sell: 'Sell',
+  split: 'Split',
+  merge: 'Merge',
+  claim: 'Reward',
+  payout: 'Payout',
 };
 
-function ActivityRow({ item }: { item: ActivityDTO }) {
-  const meta = TYPE_META[item.type];
-  const Icon = meta.icon;
+const TYPE_TONE: Record<ActivityType, string> = {
+  buy: 'text-yes',
+  sell: 'text-no',
+  split: 'text-primary',
+  merge: 'text-primary',
+  claim: 'text-warn',
+  payout: 'text-yes',
+};
+
+type Filter = 'all' | 'trades' | 'claim' | 'payout' | 'splitmerge';
+
+const FILTERS: { value: Filter; label: string; match: (t: ActivityType) => boolean }[] = [
+  { value: 'all', label: 'All activity', match: () => true },
+  { value: 'trades', label: 'Trades', match: t => t === 'buy' || t === 'sell' },
+  { value: 'splitmerge', label: 'Splits & merges', match: t => t === 'split' || t === 'merge' },
+  { value: 'payout', label: 'Payouts', match: t => t === 'payout' },
+  { value: 'claim', label: 'Rewards', match: t => t === 'claim' },
+];
+
+const COLS = 'lg:grid-cols-[150px_80px_minmax(0,1fr)_110px_80px_110px]';
+
+function Quantity({ item }: { item: ActivityDTO }) {
+  if (item.quantity == null) return <span className="text-subtle">—</span>;
   return (
-    <li className="flex items-center gap-3 px-4 py-3.5 sm:px-5">
-      <div className={cn('grid size-9 shrink-0 place-items-center rounded-xl', meta.tile)}>
-        <Icon className="size-4" />
-      </div>
-      <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
-          <span className="font-semibold">{meta.label}</span>
+    <span className="num">
+      {formatShares(item.quantity)}
+      <span className="ml-1 text-muted">{item.type === 'split' || item.type === 'merge' ? 'pairs' : 'sh'}</span>
+    </span>
+  );
+}
+
+function ActivityRow({ item }: { item: ActivityDTO }) {
+  const amountClass = item.amount > 0 ? 'text-yes' : item.amount < 0 ? 'text-fg' : 'text-muted';
+  return (
+    <li
+      className={cn(
+        'grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1 px-4 py-2.5 text-[13px] hover:bg-surface-2',
+        COLS,
+      )}
+    >
+      <span className="hidden text-xs text-muted lg:block">{formatDateTime(item.createdAt)}</span>
+      <span className={cn('hidden font-semibold lg:block', TYPE_TONE[item.type])}>{TYPE_LABEL[item.type]}</span>
+
+      <div className="min-w-0">
+        <div className="flex items-center gap-2 lg:hidden">
+          <span className={cn('font-semibold', TYPE_TONE[item.type])}>{TYPE_LABEL[item.type]}</span>
           {item.outcome && <OutcomeBadge outcome={item.outcome} />}
-          {item.quantity != null && (
-            <span className="num text-muted">
-              {formatShares(item.quantity)} {item.type === 'split' || item.type === 'merge' ? 'pairs' : 'shares'}
-              {item.price != null && item.price > 0 && ` @ ${formatCents(item.price)}`}
+          <span className="text-xs text-muted">{formatDateTime(item.createdAt)}</span>
+        </div>
+        <div className="flex min-w-0 items-center gap-2">
+          {item.outcome && (
+            <span className="hidden lg:inline">
+              <OutcomeBadge outcome={item.outcome} />
             </span>
           )}
-        </div>
-        {item.market ? (
-          <Link
-            to={`/markets/${item.market.slug}`}
-            className="mt-0.5 line-clamp-1 text-xs text-muted hover:text-fg hover:underline"
-          >
-            {item.market.title}
-          </Link>
-        ) : (
-          <div className="mt-0.5 text-xs text-muted">Account</div>
-        )}
-      </div>
-      <div className="shrink-0 text-right">
-        <div
-          className={cn(
-            'num text-sm font-semibold',
-            item.amount > 0 ? 'text-yes' : item.amount < 0 ? 'text-fg' : 'text-muted',
+          {item.market ? (
+            <Link to={`/markets/${item.market.slug}`} className="line-clamp-1 text-muted hover:text-fg lg:text-fg">
+              {item.market.title}
+            </Link>
+          ) : (
+            <span className="text-muted">Account</span>
           )}
-        >
-          {item.amount === 0 ? '—' : formatSignedUsd(item.amount)}
         </div>
-        <div className="mt-0.5 text-[11px] text-subtle">{formatDateTime(item.createdAt)}</div>
       </div>
+
+      <span className="hidden text-right lg:block">
+        <Quantity item={item} />
+      </span>
+      <span className="num hidden text-right lg:block">
+        {item.price != null && item.price > 0 ? formatCents(item.price) : <span className="text-subtle">—</span>}
+      </span>
+      <span className={cn('num text-right font-semibold', amountClass)}>
+        {item.amount === 0 ? '—' : formatSignedUsd(item.amount)}
+      </span>
     </li>
   );
 }
 
 function ActivityFeed() {
   const activity = useActivity();
+  const [filter, setFilter] = useState<Filter>('all');
 
-  if (activity.isPending) {
-    return (
-      <div className="space-y-3 p-5">
-        {Array.from({ length: 6 }).map((_, i) => (
-          <Skeleton key={i} className="h-12" />
-        ))}
-      </div>
-    );
-  }
-  if (activity.isError) return <ErrorState error={activity.error} onRetry={() => activity.refetch()} />;
-
-  const items = activity.data.pages.flatMap(p => p.items);
-  if (!items.length) {
-    return (
-      <EmptyState
-        icon={<History className="size-5" />}
-        title="No activity yet"
-        description="Trades, rewards, splits, merges and payouts will be listed here."
-      />
-    );
-  }
+  const items = useMemo(() => {
+    const all = activity.data?.pages.flatMap(p => p.items) ?? [];
+    const match = FILTERS.find(f => f.value === filter)!.match;
+    return all.filter(i => match(i.type));
+  }, [activity.data, filter]);
 
   return (
-    <>
-      <ul className="divide-y divide-border">
-        {items.map(item => (
-          <ActivityRow key={item.id} item={item} />
-        ))}
-      </ul>
-      {activity.hasNextPage && (
-        <div className="border-t border-border p-3 text-center">
-          <Button
-            variant="ghost"
-            size="sm"
-            loading={activity.isFetchingNextPage}
-            onClick={() => activity.fetchNextPage()}
-          >
-            Load more
-          </Button>
+    <Card className="overflow-hidden">
+      <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-2.5">
+        <span className="text-sm font-semibold">Ledger</span>
+        <Select value={filter} onValueChange={v => setFilter(v as Filter)}>
+          <SelectTrigger size="sm" aria-label="Filter activity" className="h-8 min-w-[150px] border-border text-[13px]">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent align="end" position="popper" className="border-border">
+            {FILTERS.map(f => (
+              <SelectItem key={f.value} value={f.value}>
+                {f.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className={cn('hidden gap-4 border-b border-border bg-surface-2 px-4 py-2 label-mono lg:grid', COLS)}>
+        <span>Time</span>
+        <span>Type</span>
+        <span>Market</span>
+        <span className="text-right">Quantity</span>
+        <span className="text-right">Price</span>
+        <span className="text-right">Amount</span>
+      </div>
+
+      {activity.isPending ? (
+        <div className="space-y-2 p-4">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <Skeleton key={i} className="h-9" />
+          ))}
         </div>
+      ) : activity.isError ? (
+        <ErrorState error={activity.error} onRetry={() => activity.refetch()} />
+      ) : !items.length ? (
+        <EmptyState
+          icon={<History />}
+          title={filter === 'all' ? 'No activity yet' : 'Nothing matches this filter'}
+          description="Trades, rewards, splits, merges and payouts are recorded here."
+        />
+      ) : (
+        <ul className="divide-y divide-border">
+          {items.map(item => (
+            <ActivityRow key={item.id} item={item} />
+          ))}
+        </ul>
       )}
-    </>
+
+      <div className="border-t border-border empty:hidden">
+        <LoadMore
+          hasNextPage={activity.hasNextPage}
+          isFetchingNextPage={activity.isFetchingNextPage}
+          fetchNextPage={activity.fetchNextPage}
+          label="Load older activity"
+        />
+      </div>
+    </Card>
   );
 }
 
 export function ActivityPage() {
+  useDocumentTitle('Activity');
   return (
-    <div className="mx-auto max-w-3xl space-y-5">
-      <h1 className="text-2xl font-bold tracking-tight">Activity</h1>
-      <RequireAuth
-        title="Sign in to view activity"
-        description="A full ledger of every balance change on your account."
-      >
-        <Card className="overflow-hidden">
-          <ActivityFeed />
-        </Card>
+    <div className="space-y-4">
+      <div>
+        <h1 className="text-xl font-semibold tracking-tight">Activity</h1>
+        <p className="mt-0.5 text-sm text-muted">Every balance change on your account, newest first.</p>
+      </div>
+      <RequireAuth title="Connect a wallet to view activity" description="Your full trading and rewards ledger.">
+        <ActivityFeed />
       </RequireAuth>
     </div>
   );

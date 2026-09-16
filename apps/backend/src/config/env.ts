@@ -21,7 +21,12 @@ const envSchema = z
           .filter(Boolean),
       ),
     TRUST_PROXY: z.coerce.number().int().min(0).default(0),
-    SUPABASE_URL: z.url().optional(),
+    SUPABASE_URL: z
+      .url({
+        protocol: /^https?$/,
+        error: 'must be the Supabase project URL (https://<ref>.supabase.co), not a database connection string',
+      })
+      .optional(),
     SUPABASE_SECRET_KEY: z.string().min(1).optional(),
     ADMIN_API_KEY: z.string().min(32, 'ADMIN_API_KEY must be at least 32 characters').optional(),
     STARTING_BALANCE_CENTS: z.coerce.number().int().min(0).default(1_000),

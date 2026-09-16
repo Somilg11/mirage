@@ -15,7 +15,7 @@ import { mergePosition, splitPosition } from '../services/positions';
 export const marketsRouter = Router();
 
 marketsRouter.get('/', async (req, res) => {
-  res.json({ markets: await listMarkets(parse(marketListQuerySchema, req.query)) });
+  res.json(await listMarkets(parse(marketListQuerySchema, req.query)));
 });
 
 marketsRouter.get('/categories', async (_req, res) => {
@@ -31,8 +31,7 @@ marketsRouter.get('/:id/orderbook', async (req, res) => {
 });
 
 marketsRouter.get('/:id/trades', async (req, res) => {
-  const { limit } = parse(paginationQuerySchema, req.query);
-  res.json({ trades: await listTrades(req.params.id, limit) });
+  res.json(await listTrades(req.params.id, parse(paginationQuerySchema, req.query)));
 });
 
 marketsRouter.get('/:id/prices', async (req, res) => {

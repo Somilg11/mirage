@@ -16,6 +16,7 @@ import { cn } from '../../lib/cn';
 import { bestAsk, bestBid, estimateBuy, estimateSell, isTradable, outcomePrice } from '../../lib/market';
 import { formatCents, formatShares, formatUsd } from '../../lib/format';
 import { Button } from '../ui/Button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { SignInButton } from '../layout/AuthControls';
 
 export type OrderMode = 'market' | 'limit';
@@ -55,7 +56,7 @@ function FieldLabel({ children, hint }: { children: string; hint?: string }) {
 
 function QuickChips({ chips, onPick }: { chips: { label: string; apply: () => void }[]; onPick?: () => void }) {
   return (
-    <div className="mt-2 flex flex-wrap gap-1.5">
+    <div className="mt-2 flex gap-1.5">
       {chips.map(chip => (
         <button
           key={chip.label}
@@ -64,7 +65,7 @@ function QuickChips({ chips, onPick }: { chips: { label: string; apply: () => vo
             chip.apply();
             onPick?.();
           }}
-          className="num h-7 rounded-md bg-surface-3 px-2.5 text-xs font-semibold text-muted transition-colors hover:bg-border hover:text-fg"
+          className="num h-7 flex-1 rounded-md border border-border bg-surface px-2 text-xs font-medium text-muted transition-colors hover:border-border-strong hover:text-fg"
         >
           {chip.label}
         </button>
@@ -183,28 +184,32 @@ export function TradePanel({
               type="button"
               onClick={() => update({ side: s, limitPrice: null })}
               className={cn(
-                'relative h-11 px-3 text-[15px] font-semibold capitalize transition-colors',
+                'relative h-10 px-3 text-sm font-semibold capitalize transition-colors',
                 side === s ? 'text-fg' : 'text-muted hover:text-fg',
               )}
             >
               {s}
-              {side === s && <span className="absolute inset-x-3 -bottom-px h-0.5 rounded-full bg-fg" />}
+              {side === s && <span className="absolute inset-x-3 -bottom-px h-0.5 bg-fg" />}
             </button>
           ))}
         </div>
-        <select
-          value={mode}
-          onChange={e => update({ mode: e.target.value as OrderMode, limitPrice: null })}
-          aria-label="Order type"
-          className="h-8 cursor-pointer rounded-lg bg-transparent pr-1 text-sm font-medium text-muted outline-none hover:text-fg"
-        >
-          <option value="market">Market</option>
-          <option value="limit">Limit</option>
-        </select>
+        <Select value={mode} onValueChange={v => update({ mode: v as OrderMode, limitPrice: null })}>
+          <SelectTrigger
+            size="sm"
+            aria-label="Order type"
+            className="h-8 border-0 bg-transparent px-2 text-[13px] font-medium text-muted shadow-none hover:text-fg dark:bg-transparent dark:hover:bg-transparent"
+          >
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent align="end" position="popper" className="border-border">
+            <SelectItem value="market">Market</SelectItem>
+            <SelectItem value="limit">Limit</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
       {/* Outcome */}
-      <div className="mt-4 grid grid-cols-2 gap-2">
+      <div className="mt-3 grid grid-cols-2 gap-2">
         {(['yes', 'no'] as const).map(o => {
           const active = outcome === o;
           const price = quote(o);
@@ -215,12 +220,12 @@ export function TradePanel({
               onClick={() => update({ outcome: o, limitPrice: null })}
               aria-pressed={active}
               className={cn(
-                'flex h-12 items-center justify-center gap-2 rounded-xl text-[15px] font-semibold transition-colors',
+                'flex h-11 items-center justify-center gap-2 rounded-md text-sm font-semibold transition-colors',
                 active
                   ? o === 'yes'
                     ? 'bg-yes text-white'
                     : 'bg-no text-white'
-                  : 'bg-surface-3 text-muted hover:text-fg',
+                  : 'border border-border bg-surface-2 text-muted hover:text-fg',
               )}
             >
               {o === 'yes' ? 'Yes' : 'No'}
@@ -231,11 +236,11 @@ export function TradePanel({
       </div>
 
       {/* Inputs */}
-      <div className="mt-5 space-y-5">
+      <div className="mt-4 space-y-4">
         {mode === 'limit' && (
           <div>
             <FieldLabel>Limit price</FieldLabel>
-            <div className="flex h-12 items-center rounded-xl border border-border bg-surface-2 focus-within:border-primary/60">
+            <div className="flex h-11 items-center rounded-md border border-border bg-surface-2 focus-within:border-primary/60">
               <button
                 type="button"
                 aria-label="Decrease price"
@@ -273,7 +278,7 @@ export function TradePanel({
               Amount
             </FieldLabel>
             <div className="relative">
-              <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-2xl font-semibold text-subtle">
+              <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-xl font-semibold text-subtle">
                 $
               </span>
               <input
@@ -282,7 +287,7 @@ export function TradePanel({
                 value={amount}
                 onChange={e => setAmount(e.target.value.replace(/[^\d.]/g, '').replace(/(\..*)\./g, '$1'))}
                 aria-label="Amount in dollars"
-                className="num h-14 w-full rounded-xl border border-border bg-surface-2 pl-9 pr-4 text-right text-2xl font-semibold outline-none placeholder:text-subtle focus:border-primary/60"
+                className="num h-12 w-full rounded-md border border-border bg-surface-2 pl-9 pr-4 text-right text-xl font-semibold outline-none placeholder:text-subtle focus:border-primary/60"
               />
             </div>
             <QuickChips
@@ -309,7 +314,7 @@ export function TradePanel({
               value={shares}
               onChange={e => setShares(e.target.value.replace(/\D/g, ''))}
               aria-label="Number of shares"
-              className="num h-14 w-full rounded-xl border border-border bg-surface-2 px-4 text-right text-2xl font-semibold outline-none placeholder:text-subtle focus:border-primary/60"
+              className="num h-12 w-full rounded-md border border-border bg-surface-2 px-4 text-right text-xl font-semibold outline-none placeholder:text-subtle focus:border-primary/60"
             />
             <QuickChips
               chips={
@@ -331,7 +336,7 @@ export function TradePanel({
       </div>
 
       {/* Summary */}
-      <div className="mt-5 space-y-2 rounded-xl bg-surface-2 p-3.5">
+      <div className="mt-4 space-y-2 rounded-md border border-border bg-surface-2 p-3">
         <SummaryRow
           label="Avg. price"
           value={formatCents(estimate.avgPrice == null ? null : Math.round(estimate.avgPrice * 10) / 10)}
@@ -346,7 +351,7 @@ export function TradePanel({
                 To win
                 {returnPct != null && <span className="num ml-1.5 text-xs text-yes">+{returnPct.toFixed(0)}%</span>}
               </span>
-              <span className="num text-xl font-bold text-yes">{formatUsd(toWin)}</span>
+              <span className="num text-lg font-semibold text-yes">{formatUsd(toWin)}</span>
             </div>
           </>
         ) : (
@@ -354,7 +359,7 @@ export function TradePanel({
             <div className="my-1 h-px bg-border" />
             <div className="flex items-end justify-between">
               <span className="text-sm text-muted">{mode === 'market' ? "You'll receive" : 'Proceeds if filled'}</span>
-              <span className="num text-xl font-bold text-fg">{formatUsd(estimate.total)}</span>
+              <span className="num text-lg font-semibold text-fg">{formatUsd(estimate.total)}</span>
             </div>
           </>
         )}

@@ -33,7 +33,7 @@ function SplitMerge({ market, maxMerge }: { market: MarketDetail; maxMerge: numb
   }
 
   return (
-    <div className="rounded-xl border border-border p-3.5">
+    <div className="rounded-md border border-border p-3.5">
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2 text-sm font-medium">
           <Layers className="size-4 text-muted" /> Split & merge
@@ -97,7 +97,7 @@ export function YourPosition({ market }: { market: MarketDetail }) {
       <CardHeader title="Your position" />
       <div className="space-y-3 p-4 pt-3 sm:px-5">
         {positions.length ? (
-          <ul className="divide-y divide-border rounded-xl border border-border">
+          <ul className="divide-y divide-border rounded-md border border-border">
             {positions.map(p => (
               <li key={p.outcome} className="grid grid-cols-2 gap-3 p-3.5 sm:grid-cols-4">
                 <div>
@@ -137,8 +137,8 @@ export function YourPosition({ market }: { market: MarketDetail }) {
         )}
 
         {openOrders.length > 0 && (
-          <div className="rounded-xl border border-border">
-            <div className="border-b border-border px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-subtle sm:px-5">
+          <div className="rounded-md border border-border">
+            <div className="border-b border-border px-4 py-2.5 label-mono sm:px-5">
               Open orders ({openOrders.length})
             </div>
             <ul className="divide-y divide-border">
