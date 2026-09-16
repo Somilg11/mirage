@@ -1,27 +1,39 @@
 {
   "name": "backend",
-  "module": "index.ts",
-  "type": "module",
   "private": true,
-  "devDependencies": {
-    "@types/bun": "latest",
-    "vitest": "^4.1.7",
-    "undici": "^6.2.5"
-  },
+  "type": "module",
   "scripts": {
-    "test": "vitest"
-  },
-  "peerDependencies": {
-    "typescript": "^5",
-    "db": "*"
+    "dev": "bun --watch src/index.ts",
+    "start": "bun src/index.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "eslint . --max-warnings 0",
+    "check-types": "tsc --noEmit",
+    "db:seed": "bun scripts/seed.ts"
   },
   "dependencies": {
+    "@repo/shared": "*",
     "@supabase/supabase-js": "^2.106.2",
-    "@types/cors": "^2.8.19",
-    "@types/express": "^5.0.6",
     "cors": "^2.8.6",
+    "db": "*",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
+    "express-rate-limit": "^8.2.1",
+    "helmet": "^8.1.0",
+    "pino": "^10.1.0",
+    "pino-http": "^11.0.0",
     "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@repo/eslint-config": "*",
+    "@types/bun": "latest",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/supertest": "^6.0.3",
+    "eslint": "^9.39.1",
+    "pino-pretty": "^13.1.2",
+    "supertest": "^7.1.4",
+    "typescript": "5.9.2",
+    "vitest": "^4.1.7"
   }
 }

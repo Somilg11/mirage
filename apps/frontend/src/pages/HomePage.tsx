@@ -1,125 +1,198 @@
-import { Link } from 'react-router-dom';
-import { useMarkets } from '../hooks/queries';
-import type { MarketListItem, OrderBook } from '../types/api';
+import { useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { Clock, SearchX, TrendingUp } from 'lucide-react';
+import type { MarketListQuery } from '@repo/shared';
+import { useCategories, useMarkets } from '../hooks/queries';
+import { useDebouncedValue } from '../hooks/useDebouncedValue';
+import { cn } from '../lib/cn';
+import { formatProbability, formatRelative } from '../lib/format';
+import { MarketCard, MarketCardSkeleton } from '../components/market/MarketCard';
+import { FeaturedMarket, MarketList } from '../components/market/FeaturedMarket';
+import { PriceChange } from '../components/market/MarketBits';
+import { EmptyState, ErrorState, SegmentedControl, Skeleton } from '../components/ui/primitives';
+import { Button } from '../components/ui/Button';
 
-function sumBookQty(book?: OrderBook) {
-  if (!book) return 0;
-  return Object.values(book).reduce((s, lvl) => s + (lvl?.availableQuantity ?? 0), 0);
-}
+type Sort = NonNullable<MarketListQuery['sort']>;
+type Status = 'open' | 'resolved';
 
-function computeYesPct(m: MarketListItem) {
-  if (typeof m.yesPct === 'number') return Math.max(0, Math.min(100, Math.round(m.yesPct)));
-  const yes = sumBookQty(m.yesBook);
-  const no = sumBookQty(m.noBook);
-  const total = yes + no;
-  if (!total) return undefined;
-  return Math.round((yes / total) * 100);
-}
+const SORTS: { value: Sort; label: string }[] = [
+  { value: 'volume', label: 'Trending' },
+  { value: 'newest', label: 'New' },
+  { value: 'ending', label: 'Ending soon' },
+];
 
-function MarketCard({ m, index }: { m: MarketListItem; index?: number }) {
-  const yesPct = computeYesPct(m);
-  const noPct = typeof yesPct === 'number' ? 100 - yesPct : undefined;
+export function HomePage() {
+  const [params, setParams] = useSearchParams();
+  const category = params.get('category') ?? undefined;
+  const sort = (params.get('sort') as Sort | null) ?? 'volume';
+  const status = (params.get('status') as Status | null) ?? 'open';
+  const q = useDebouncedValue(params.get('q') ?? '', 200);
+
+  const markets = useMarkets({ category, sort, status, q: q || undefined });
+  const categories = useCategories();
+  // Unfiltered snapshot powers the featured hero and side lists.
+  const overview = useMarkets({ sort: 'volume', status: 'open' });
+
+  const setParam = (key: string, value: string | undefined) => {
+    const next = new URLSearchParams(params);
+    if (value) next.set(key, value);
+    else next.delete(key);
+    setParams(next, { replace: true });
+  };
+
+  const showHero = !category && !q && status === 'open';
+  const featured = overview.data?.[0];
+  const movers = useMemo(
+    () =>
+      [...(overview.data ?? [])]
+        .filter(m => m.change24h)
+        .sort((a, b) => Math.abs(b.change24h ?? 0) - Math.abs(a.change24h ?? 0))
+        .slice(0, 5),
+    [overview.data],
+  );
+  const endingSoon = useMemo(
+    () => [...(overview.data ?? [])].sort((a, b) => a.endDate.localeCompare(b.endDate)).slice(0, 5),
+    [overview.data],
+  );
 
   return (
-    <Link
-      to={`/market/${m.id}`}
-      className="group relative bg-white/5 p-3 ring-1 ring-white/10 hover:bg-white/8 transition-all duration-300 border-r border-b border-white/5 last:border-r-0 active:scale-[0.98] animate-in fade-in slide-in-from-bottom-2"
-      style={{ animationDelay: `${(index || 0) * 50}ms` }}
-    >
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0">
-          <div className="truncate text-xs font-semibold text-white">{m.title}</div>
-          <div className="mt-0.5 line-clamp-2 text-[10px] text-gray-400">{m.description}</div>
+    <div className="space-y-6 sm:space-y-8">
+      {showHero && (
+        <section className="grid gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+          {overview.isPending ? (
+            <>
+              <Skeleton className="h-80 rounded-2xl" />
+              <Skeleton className="hidden h-80 rounded-2xl xl:block" />
+            </>
+          ) : featured ? (
+            <>
+              <FeaturedMarket market={featured} />
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-1">
+                <MarketList
+                  title="Top movers · 24h"
+                  icon={<TrendingUp className="size-4 text-primary" />}
+                  markets={movers}
+                  metric={m => (
+                    <div>
+                      <div className="num text-sm font-semibold">{formatProbability(m.yesPrice)}</div>
+                      <PriceChange change={m.change24h} className="text-xs" />
+                    </div>
+                  )}
+                />
+                <MarketList
+                  className="hidden md:flex"
+                  title="Ending soon"
+                  icon={<Clock className="size-4 text-warn" />}
+                  markets={endingSoon.slice(0, movers.length ? 3 : 5)}
+                  metric={m => <span className="text-xs text-muted">{formatRelative(m.endDate)}</span>}
+                />
+              </div>
+            </>
+          ) : null}
+        </section>
+      )}
+
+      <section>
+        <div className="sticky top-14 z-30 -mx-4 border-b border-border bg-bg/90 px-4 backdrop-blur-xl sm:top-16 sm:-mx-6 sm:px-6">
+          <div className="no-scrollbar flex gap-1.5 overflow-x-auto py-3" role="tablist" aria-label="Categories">
+            {[{ name: 'All', count: undefined as number | undefined }, ...(categories.data ?? [])].map(c => {
+              const value = c.name === 'All' ? undefined : c.name;
+              const active = category === value;
+              return (
+                <button
+                  key={c.name}
+                  role="tab"
+                  aria-selected={active}
+                  onClick={() => setParam('category', value)}
+                  className={cn(
+                    'flex h-8 shrink-0 items-center gap-1.5 rounded-full px-3.5 text-[13px] font-semibold transition-colors',
+                    active ? 'bg-fg text-bg' : 'bg-surface-3 text-muted hover:text-fg',
+                  )}
+                >
+                  {c.name}
+                  {c.count != null && (
+                    <span className={cn('num text-[11px]', active ? 'opacity-70' : 'text-subtle')}>{c.count}</span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
         </div>
-        <div className="shrink-0 text-right">
-          {typeof yesPct === 'number' ? (
-            <div>
-              <div className="text-sm font-semibold text-white">{yesPct}%</div>
-              <div className="text-[10px] text-gray-400">Yes · {noPct}% No</div>
+
+        <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
+          <h1 className="text-xl font-bold tracking-tight sm:text-2xl">
+            {q
+              ? `Results for “${q}”`
+              : category
+                ? category
+                : status === 'resolved'
+                  ? 'Resolved markets'
+                  : 'All markets'}
+          </h1>
+          <div className="flex w-full items-center gap-2 sm:w-auto">
+            <SegmentedControl
+              ariaLabel="Sort markets"
+              className="flex-1 sm:flex-none"
+              value={sort}
+              onChange={v => setParam('sort', v === 'volume' ? undefined : v)}
+              options={SORTS}
+            />
+            <SegmentedControl
+              ariaLabel="Market status"
+              value={status}
+              onChange={v => setParam('status', v === 'open' ? undefined : v)}
+              options={[
+                { value: 'open', label: 'Live' },
+                { value: 'resolved', label: 'Resolved' },
+              ]}
+            />
+          </div>
+        </div>
+
+        <div className="mt-4">
+          {markets.isPending ? (
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
+              {Array.from({ length: 8 }).map((_, i) => (
+                <MarketCardSkeleton key={i} />
+              ))}
             </div>
+          ) : markets.isError ? (
+            <ErrorState title="Couldn't load markets" error={markets.error} onRetry={() => markets.refetch()} />
+          ) : markets.data.length === 0 ? (
+            <EmptyState
+              icon={<SearchX className="size-5" />}
+              title="No markets found"
+              description={
+                q || category
+                  ? 'Try a different search or category.'
+                  : 'Markets will appear here once they are created.'
+              }
+              action={
+                (q || category) && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setParams(new URLSearchParams(), { replace: true })}
+                  >
+                    Clear filters
+                  </Button>
+                )
+              }
+            />
           ) : (
-            <div>
-              <div className="text-xs text-gray-400">—</div>
-              <div className="text-[10px] text-gray-500">No liquidity</div>
+            <div
+              className={cn(
+                'grid gap-3 transition-opacity sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4',
+                markets.isPlaceholderData && 'opacity-60',
+              )}
+            >
+              {markets.data.map(m => (
+                <MarketCard key={m.id} market={m} />
+              ))}
             </div>
           )}
         </div>
-      </div>
-
-      <div className="mt-3 flex items-center gap-2">
-        <div className="bg-green-500/20 px-2 py-1 text-[10px] font-semibold text-green-300 ring-1 ring-green-500/30 group-hover:bg-green-500/25 transition-all duration-200 group-hover:scale-105">
-          Buy Yes
-        </div>
-        <div className="bg-red-500/20 px-2 py-1 text-[10px] font-semibold text-red-300 ring-1 ring-red-500/30 group-hover:bg-red-500/25 transition-all duration-200 group-hover:scale-105">
-          Buy No
-        </div>
-      </div>
-    </Link>
-  );
-}
-
-function GridSkeleton() {
-  return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-      {Array.from({ length: 9 }).map((_, i) => (
-        <div key={i} className="bg-white/5 ring-1 ring-white/10 p-3 animate-pulse">
-          <div className="h-3 w-3/4 bg-white/10" />
-          <div className="mt-1.5 h-2 w-full bg-white/10" />
-          <div className="mt-0.5 h-2 w-5/6 bg-white/10" />
-          <div className="mt-3 flex gap-2">
-            <div className="h-6 w-16 bg-white/10" />
-            <div className="h-6 w-16 bg-white/10" />
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-export function HomePage() {
-  const markets = useMarkets();
-
-  return (
-    <div>
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 mb-4">
-        <div className="lg:col-span-2 bg-white/5 ring-1 ring-white/10 p-3 sm:p-4 overflow-hidden hover:bg-white/8 transition-all duration-300 hover:ring-white/20">
-          <div className="text-[10px] text-white/70">LIVE</div>
-          <div className="mt-0.5 text-base sm:text-lg font-semibold">Trending Markets</div>
-          <div className="mt-1 text-xs text-white/80">All content below is loaded from the backend.</div>
-        </div>
-        <div className="bg-white/5 ring-1 ring-white/10 p-3 sm:p-4 hover:bg-white/8 transition-all duration-300 hover:ring-white/20">
-          <div className="text-[10px] text-white/70">New</div>
-          <div className="mt-0.5 text-sm font-semibold">Discover markets</div>
-          <div className="mt-1 text-xs text-white/80">Browse, trade, and track performance.</div>
-        </div>
-      </div>
-
-      {markets.isLoading && <GridSkeleton />}
-
-      {markets.isError && (
-        <div className="bg-white/5 ring-1 ring-white/20 p-3 sm:p-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
-          <div className="text-xs font-semibold text-white">Couldn't load markets</div>
-          <div className="mt-1 text-xs text-gray-400">{(markets.error as Error).message}</div>
-          <button className="mt-2 bg-white/5 px-2 py-1 text-xs ring-1 ring-white/10 hover:bg-white/10 transition-all duration-200 active:scale-95 hover:ring-white/20" onClick={() => markets.refetch()}>
-            Retry
-          </button>
-        </div>
-      )}
-
-      {markets.isSuccess && markets.data.markets.length === 0 && (
-        <div className="bg-white/5 ring-1 ring-white/10 p-3 sm:p-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
-          <div className="text-xs font-semibold">No markets yet</div>
-          <div className="mt-1 text-xs text-gray-400">Once the backend has markets, they'll show up here.</div>
-        </div>
-      )}
-
-      {markets.isSuccess && markets.data.markets.length > 0 && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-0">
-          {markets.data.markets.map((m, i) => (
-            <MarketCard key={m.id} m={m} index={i} />
-          ))}
-        </div>
-      )}
+      </section>
     </div>
   );
 }

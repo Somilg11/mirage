@@ -1,281 +1,229 @@
-import { useMemo, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
-import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-import { useAuthToken } from '../hooks/useAuthToken';
-import { useBuyMarket, useMarket, useSellMarket } from '../hooks/queries';
-import type { CreateOrderRequest, MarketResponse, OrderBook } from '../types/api';
+import { useEffect, useState } from 'react';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
+import { ArrowLeft, BarChart3, CalendarClock, Scale, Users } from 'lucide-react';
+import type { Outcome } from '@repo/shared';
+import { useMarket, useOrderBook } from '../hooks/queries';
+import { useMediaQuery } from '../hooks/useMediaQuery';
+import { formatCents, formatDate, formatShares, formatUsdCompact } from '../lib/format';
+import { bestAsk, isTradable, outcomePrice } from '../lib/market';
+import { Card, CardHeader, EmptyState, ErrorState, Skeleton } from '../components/ui/primitives';
+import { Button } from '../components/ui/Button';
+import { Sheet } from '../components/ui/Sheet';
+import { MarketIcon, MarketStatusBadge } from '../components/market/MarketBits';
+import { PriceChart } from '../components/market/PriceChart';
+import { OrderBook } from '../components/market/OrderBook';
+import { TradePanel, type TicketState } from '../components/market/TradePanel';
+import { RecentTrades } from '../components/market/RecentTrades';
+import { YourPosition } from '../components/market/YourPosition';
 
-function parseBook(v: unknown): OrderBook | undefined {
-  if (!v) return undefined;
-  if (typeof v === 'object') return v as OrderBook;
-  if (typeof v === 'string') {
-    try {
-      return JSON.parse(v) as OrderBook;
-    } catch {
-      return undefined;
-    }
-  }
-  return undefined;
-}
-
-function sumBookQty(book?: OrderBook) {
-  if (!book) return 0;
-  return Object.values(book).reduce((s, lvl) => s + (lvl?.availableQuantity ?? 0), 0);
-}
-
-function computeYesPct(yes?: OrderBook, no?: OrderBook) {
-  const y = sumBookQty(yes);
-  const n = sumBookQty(no);
-  const total = y + n;
-  if (!total) return undefined;
-  return Math.round((y / total) * 100);
-}
-
-function Skeleton() {
+function MarketSkeleton() {
   return (
-    <div className="grid grid-cols-1 xl:grid-cols-12 gap-4">
-      <div className="xl:col-span-8 bg-white/5 ring-1 ring-white/10 p-4 animate-pulse">
-        <div className="h-4 w-2/3 bg-white/10" />
-        <div className="mt-2 h-3 w-full bg-white/10" />
-        <div className="mt-0.5 h-3 w-5/6 bg-white/10" />
-        <div className="mt-4 h-40 bg-white/10" />
+    <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
+      <div className="space-y-4">
+        <div className="flex gap-4">
+          <Skeleton className="size-14 rounded-2xl" />
+          <div className="flex-1 space-y-2">
+            <Skeleton className="h-4 w-32" />
+            <Skeleton className="h-7 w-3/4" />
+          </div>
+        </div>
+        <Skeleton className="h-96 rounded-2xl" />
+        <Skeleton className="h-72 rounded-2xl" />
       </div>
-      <div className="xl:col-span-4 bg-white/5 ring-1 ring-white/10 p-4 animate-pulse">
-        <div className="h-4 w-1/2 bg-white/10" />
-        <div className="mt-2 h-8 w-full bg-white/10" />
-        <div className="mt-1.5 h-8 w-full bg-white/10" />
-        <div className="mt-1.5 h-8 w-full bg-white/10" />
-      </div>
+      <Skeleton className="hidden h-130 rounded-2xl lg:block" />
+    </div>
+  );
+}
+
+function StatItem({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
+  return (
+    <div className="flex items-center gap-2 text-sm">
+      <span className="text-subtle [&>svg]:size-4">{icon}</span>
+      <span className="text-muted">{label}</span>
+      <span className="num font-semibold text-fg">{value}</span>
     </div>
   );
 }
 
 export function MarketPage() {
-  const { id } = useParams();
-  const nav = useNavigate();
-  const token = useAuthToken();
+  const { slug } = useParams();
+  const [params] = useSearchParams();
+  const isDesktop = useMediaQuery('(min-width: 1024px)');
 
-  const marketQ = useMarket(id || '');
-  const buyM = useBuyMarket(token);
-  const sellM = useSellMarket(token);
+  const marketQ = useMarket(slug);
+  const bookQ = useOrderBook(marketQ.data?.id);
 
-  const [tab, setTab] = useState<'buy' | 'sell'>('buy');
-  const [side, setSide] = useState<'yes' | 'no'>('yes');
-  const [price, setPrice] = useState<number>(50);
-  const [quantity, setQuantity] = useState<number>(1);
+  const initialOutcome: Outcome = params.get('outcome') === 'no' ? 'no' : 'yes';
+  const [ticket, setTicket] = useState<TicketState>({
+    side: 'buy',
+    outcome: initialOutcome,
+    mode: 'market',
+    limitPrice: null,
+  });
+  const [bookOutcome, setBookOutcome] = useState<Outcome>(initialOutcome);
+  const [sheetOpen, setSheetOpen] = useState(() => params.has('outcome'));
 
-  const market = (marketQ.data as MarketResponse | undefined)?.market;
-  const yesBook = useMemo(() => parseBook(market?.yesBook ?? market?.yesOrderBook), [market]);
-  const noBook = useMemo(() => parseBook(market?.noBook ?? market?.noOrderBook), [market]);
-  const yesPct = computeYesPct(yesBook, noBook);
-
-  const chartData = useMemo(() => {
-    const data = [];
-    const now = new Date();
-    for (let i = 30; i >= 0; i--) {
-      const date = new Date(now);
-      date.setDate(date.getDate() - i);
-      const basePct = yesPct ?? 50;
-      // eslint-disable-next-line react-hooks/purity
-      const variance = Math.random() * 10 - 5;
-      const yesValue = Math.max(0, Math.min(100, Math.round(basePct + variance)));
-      const noValue = 100 - yesValue;
-      data.push({
-        t: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-        yes: yesValue,
-        no: noValue,
-      });
-    }
-    return data;
-  }, [yesPct]);
-
-  async function submit() {
-    if (!id) return;
-    const req: CreateOrderRequest = {
-      marketId: id,
-      side,
-      type: tab,
-      price,
-      quantity,
+  const title = marketQ.data?.title;
+  useEffect(() => {
+    if (title) document.title = `${title} · Mirage`;
+    return () => {
+      document.title = 'Mirage — Prediction Markets';
     };
+  }, [title]);
 
-    if (tab === 'buy') {
-      await buyM.mutateAsync(req);
-    } else {
-      await sellM.mutateAsync(req);
-    }
-  }
-
-  if (marketQ.isLoading) return <Skeleton />;
-
+  if (marketQ.isPending) return <MarketSkeleton />;
   if (marketQ.isError) {
-    return (
-      <div className="bg-white/5 ring-1 ring-white/20 p-4">
-        <div className="text-xs font-semibold text-white">Couldn't load market</div>
-        <div className="mt-1 text-xs text-gray-400">{(marketQ.error as Error).message}</div>
-        <div className="mt-2 flex gap-2">
-          <button className="bg-white/5 px-2 py-1 text-xs ring-1 ring-white/10 hover:bg-white/10 transition-all duration-200 active:scale-95 hover:ring-white/20" onClick={() => marketQ.refetch()}>
-            Retry
-          </button>
-          <button className="bg-white/5 px-2 py-1 text-xs ring-1 ring-white/10 hover:bg-white/10 transition-all duration-200 active:scale-95 hover:ring-white/20" onClick={() => nav('/')}>Back</button>
-        </div>
-      </div>
+    const notFound = (marketQ.error as { status?: number }).status === 404;
+    return notFound ? (
+      <EmptyState
+        title="Market not found"
+        description="This market doesn't exist or may have been removed."
+        action={
+          <Link to="/">
+            <Button variant="outline" size="sm">
+              Browse markets
+            </Button>
+          </Link>
+        }
+      />
+    ) : (
+      <ErrorState title="Couldn't load market" error={marketQ.error} onRetry={() => marketQ.refetch()} />
     );
   }
 
-  if (!market) {
-    return (
-      <div className="bg-white/5 ring-1 ring-white/10 p-4">
-        <div className="text-xs font-semibold">Market not found</div>
-        <div className="mt-2">
-          <button className="bg-white/5 px-2 py-1 text-xs ring-1 ring-white/10 hover:bg-white/10 transition-all duration-200 active:scale-95 hover:ring-white/20" onClick={() => nav('/')}>Back</button>
-        </div>
-      </div>
-    );
-  }
+  const market = marketQ.data;
+  const tradable = isTradable(market);
 
-  const yesOrders = Object.entries(yesBook || {})
-    .sort(([a], [b]) => parseInt(a) - parseInt(b))
-    .map(([price, data]) => ({ price: parseInt(price), ...data }));
-  
-  const noOrders = Object.entries(noBook || {})
-    .sort(([a], [b]) => parseInt(a) - parseInt(b))
-    .map(([price, data]) => ({ price: parseInt(price), ...data }));
+  const selectPrice = (price: number, outcome: Outcome) => {
+    const levelIsAsk = bookQ.data?.[outcome].asks.some(l => l.price === price);
+    // Clicking an ask pre-fills a buy at that price; clicking a bid pre-fills a sell.
+    setTicket({ side: levelIsAsk ? 'buy' : 'sell', outcome, mode: 'limit', limitPrice: price });
+    if (!isDesktop) setSheetOpen(true);
+  };
+
+  const openTicket = (outcome: Outcome) => {
+    setTicket(t => ({ ...t, side: 'buy', outcome, limitPrice: null }));
+    setSheetOpen(true);
+  };
+
+  const panel = (
+    <TradePanel
+      market={market}
+      book={bookQ.data}
+      ticket={ticket}
+      onTicketChange={setTicket}
+      onSubmitted={() => !isDesktop && setSheetOpen(false)}
+    />
+  );
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-      <div className="lg:col-span-8">
-        <div className="bg-white/5 ring-1 ring-white/10 p-3 sm:p-4">
-          <div className="text-xs text-gray-400">Market</div>
-          <div className="mt-0.5 text-base sm:text-lg font-semibold">{market.title}</div>
-          <div className="mt-1 text-xs text-gray-300">{market.description}</div>
+    <div>
+      <Link to="/" className="mb-4 inline-flex items-center gap-1.5 text-sm font-medium text-muted hover:text-fg">
+        <ArrowLeft className="size-4" /> Markets
+      </Link>
 
-          <div className="mt-4 bg-black/20 ring-1 ring-white/10 p-3">
-            <div className="flex items-center justify-between">
-              <div className="text-xs font-semibold">Probability</div>
-              <div className="text-xs text-gray-300">{typeof yesPct === 'number' ? `${yesPct}% Yes` : '—'}</div>
+      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_360px] xl:grid-cols-[minmax(0,1fr)_380px]">
+        <div className="min-w-0 space-y-4">
+          <header className="flex items-start gap-3.5 sm:gap-4">
+            <MarketIcon category={market.category} imageUrl={market.imageUrl} size="lg" />
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2 text-xs font-medium text-muted">
+                <Link to={`/?category=${encodeURIComponent(market.category)}`} className="hover:text-fg">
+                  {market.category}
+                </Link>
+                <MarketStatusBadge market={market} />
+              </div>
+              <h1 className="mt-1 text-xl font-bold leading-tight tracking-tight sm:text-[28px]">{market.title}</h1>
+              <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1.5">
+                <StatItem icon={<BarChart3 />} label="Vol." value={formatUsdCompact(market.volume)} />
+                <StatItem
+                  icon={<CalendarClock />}
+                  label={market.status === 'open' ? 'Ends' : 'Ended'}
+                  value={formatDate(market.endDate)}
+                />
+                <StatItem icon={<Scale />} label="Open interest" value={formatShares(market.openInterest)} />
+                <StatItem icon={<Users />} label="Traders" value={formatShares(market.traders)} />
+              </div>
             </div>
+          </header>
 
-            <div className="mt-3 h-48 sm:h-56">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={chartData}>
-                  <CartesianGrid stroke="rgba(255,255,255,0.06)" />
-                  <XAxis dataKey="t" stroke="rgba(255,255,255,0.35)" tick={{ fontSize: 10 }} />
-                  <YAxis stroke="rgba(255,255,255,0.35)" domain={[0, 100]} tick={{ fontSize: 10 }} />
-                  <Tooltip contentStyle={{ background: '#000000', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 0, fontSize: 11 }} />
-                  <Area type="monotone" dataKey="yes" stroke="#22c55e" fill="#22c55e" fillOpacity={0.2} />
-                  <Area type="monotone" dataKey="no" stroke="#ef4444" fill="#ef4444" fillOpacity={0.2} />
-                </AreaChart>
-              </ResponsiveContainer>
+          <Card className="p-4 sm:p-5">
+            <PriceChart market={market} />
+          </Card>
+
+          <Card className="overflow-hidden">
+            <OrderBook
+              market={market}
+              book={bookQ.data}
+              isLoading={bookQ.isPending}
+              outcome={bookOutcome}
+              onOutcomeChange={setBookOutcome}
+              onSelectPrice={selectPrice}
+            />
+          </Card>
+
+          <Card className="overflow-hidden empty:hidden">
+            <YourPosition market={market} />
+          </Card>
+
+          <Card>
+            <CardHeader title="Rules" />
+            <div className="space-y-4 px-4 pb-5 pt-3 text-sm leading-relaxed text-muted sm:px-5">
+              <p className="whitespace-pre-line text-fg/90">{market.description}</p>
+              <div className="rounded-xl bg-surface-2 p-4">
+                <div className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-subtle">Resolution</div>
+                <p className="whitespace-pre-line">{market.rules}</p>
+              </div>
+              <div className="flex flex-wrap gap-x-6 gap-y-1 text-xs">
+                <span>Created {formatDate(market.createdAt)}</span>
+                <span>Closes {formatDate(market.endDate)}</span>
+                {market.resolvedAt && <span>Resolved {formatDate(market.resolvedAt)}</span>}
+              </div>
             </div>
-          </div>
+          </Card>
+
+          <Card className="overflow-hidden">
+            <RecentTrades market={market} />
+          </Card>
+
+          {/* Spacer so the fixed mobile trade bar never covers content. */}
+          {tradable && <div className="h-16 lg:hidden" aria-hidden />}
         </div>
 
-        <div className="mt-4 bg-white/5 ring-1 ring-white/10 p-3 sm:p-4">
-          <div className="text-xs font-semibold mb-3">Order Book</div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <div className="flex items-center justify-between mb-2 pb-2 border-b border-white/5">
-                <div className="text-[10px] font-semibold text-green-300">YES</div>
-                <div className="text-[10px] text-gray-400">Price</div>
-                <div className="text-[10px] text-gray-400">Qty</div>
-              </div>
-              <div className="space-y-1">
-                {yesOrders.length > 0 ? yesOrders.map((order, i) => (
-                  <div key={i} className="flex items-center justify-between bg-green-500/5 px-2 py-1.5 hover:bg-green-500/10 transition-all duration-200 hover:scale-105 cursor-pointer">
-                    <span className="text-[10px] text-green-300 font-semibold">{order.price}¢</span>
-                    <span className="text-[10px] text-gray-300">{order.availableQuantity}</span>
-                  </div>
-                )) : (
-                  <div className="text-[10px] text-gray-500 py-2">No orders</div>
-                )}
-              </div>
-            </div>
-            <div>
-              <div className="flex items-center justify-between mb-2 pb-2 border-b border-white/5">
-                <div className="text-[10px] font-semibold text-red-300">NO</div>
-                <div className="text-[10px] text-gray-400">Price</div>
-                <div className="text-[10px] text-gray-400">Qty</div>
-              </div>
-              <div className="space-y-1">
-                {noOrders.length > 0 ? noOrders.map((order, i) => (
-                  <div key={i} className="flex items-center justify-between bg-red-500/5 px-2 py-1.5 hover:bg-red-500/10 transition-all duration-200 hover:scale-105 cursor-pointer">
-                    <span className="text-[10px] text-red-300 font-semibold">{order.price}¢</span>
-                    <span className="text-[10px] text-gray-300">{order.availableQuantity}</span>
-                  </div>
-                )) : (
-                  <div className="text-[10px] text-gray-500 py-2">No orders</div>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
+        {isDesktop && (
+          <aside className="sticky top-20 hidden lg:block">
+            <Card className="p-4 pt-1">{panel}</Card>
+          </aside>
+        )}
       </div>
 
-      <div className="lg:col-span-4">
-        <div className="lg:sticky lg:top-20 bg-white/5 ring-1 ring-white/10 overflow-hidden">
-          <div className="p-3 border-b border-white/5">
-            <div className="text-[10px] text-gray-400">Trade</div>
-            <div className="mt-0.5 text-xs font-semibold">{market.title}</div>
-          </div>
-
-          <div className="p-3">
-            <div className="flex items-center gap-2">
-              <button onClick={() => setTab('buy')} className={`flex-1 px-2 py-1.5 text-xs font-semibold ring-1 transition-all duration-200 active:scale-95 ${tab === 'buy' ? 'bg-green-500/20 ring-green-500/30 text-green-300' : 'bg-white/5 ring-white/10 hover:bg-white/10'}`}>Buy</button>
-              <button onClick={() => setTab('sell')} className={`flex-1 px-2 py-1.5 text-xs font-semibold ring-1 transition-all duration-200 active:scale-95 ${tab === 'sell' ? 'bg-red-500/20 ring-red-500/30 text-red-300' : 'bg-white/5 ring-white/10 hover:bg-white/10'}`}>Sell</button>
-            </div>
-
-            <div className="mt-2 flex items-center gap-2">
-              <button onClick={() => setSide('yes')} className={`flex-1 px-2 py-1.5 text-xs font-semibold ring-1 transition-all duration-200 active:scale-95 ${side === 'yes' ? 'bg-white/10 ring-white/20 text-white' : 'bg-white/5 ring-white/10 hover:bg-white/10'}`}>Yes</button>
-              <button onClick={() => setSide('no')} className={`flex-1 px-2 py-1.5 text-xs font-semibold ring-1 transition-all duration-200 active:scale-95 ${side === 'no' ? 'bg-white/10 ring-white/20 text-white' : 'bg-white/5 ring-white/10 hover:bg-white/10'}`}>No</button>
-            </div>
-
-            <div className="mt-3 grid grid-cols-2 gap-2">
-              <div>
-                <div className="text-[10px] text-gray-400">Price (¢)</div>
-                <input className="mt-0.5 w-full bg-white/5 px-2 py-1.5 text-xs ring-1 ring-white/10 outline-none transition-all duration-200 focus:ring-white/30 hover:bg-white/8 focus:scale-[1.02]" type="number" value={price} onChange={e => setPrice(Number(e.target.value))} />
-              </div>
-              <div>
-                <div className="text-[10px] text-gray-400">Qty</div>
-                <input className="mt-0.5 w-full bg-white/5 px-2 py-1.5 text-xs ring-1 ring-white/10 outline-none transition-all duration-200 focus:ring-white/30 hover:bg-white/8 focus:scale-[1.02]" type="number" value={quantity} onChange={e => setQuantity(Number(e.target.value))} />
-              </div>
-            </div>
-
-            <button
-              className={`mt-3 w-full py-2 text-xs font-semibold disabled:opacity-60 transition-all duration-200 active:scale-95 ${tab === 'buy' ? 'bg-green-500/20 text-green-300 ring-1 ring-green-500/30 hover:bg-green-500/25' : 'bg-red-500/20 text-red-300 ring-1 ring-red-500/30 hover:bg-red-500/25'}`}
-              disabled={buyM.isPending || sellM.isPending}
-              onClick={() => void submit()}
-            >
-              {tab === 'buy' ? 'Buy' : 'Sell'} {side === 'yes' ? 'Yes' : 'No'}
-            </button>
-
-            {(buyM.isError || sellM.isError) && (
-              <div className="mt-1.5 text-xs text-white">{((buyM.error || sellM.error) as Error).message}</div>
-            )}
-            {(buyM.isSuccess || sellM.isSuccess) && (
-              <div className="mt-1.5 text-xs text-white">Success</div>
-            )}
-
-            <div className="mt-4 border-t border-white/5 pt-3">
-              <div className="text-[10px] text-gray-400 mb-2">Risk Analysis</div>
-              <div className="space-y-2">
-                <div className="flex justify-between items-center">
-                  <span className="text-[10px] text-gray-300">Total Cost</span>
-                  <span className="text-[10px] font-semibold">${((price * quantity) / 100).toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-[10px] text-gray-300">Potential Profit</span>
-                  <span className="text-[10px] font-semibold text-green-300">${(((100 - price) * quantity) / 100).toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-[10px] text-gray-300">Potential Loss</span>
-                  <span className="text-[10px] font-semibold text-red-300">${((price * quantity) / 100).toFixed(2)}</span>
-                </div>
-              </div>
+      {!isDesktop && tradable && (
+        <>
+          <div className="fixed inset-x-0 bottom-[calc(3.5rem+env(safe-area-inset-bottom))] z-30 border-t border-border bg-bg/90 px-4 py-2.5 backdrop-blur-xl md:bottom-0 md:pb-[calc(0.625rem+env(safe-area-inset-bottom))]">
+            <div className="mx-auto grid max-w-lg grid-cols-2 gap-2">
+              <Button variant="yes" size="lg" onClick={() => openTicket('yes')}>
+                Buy Yes{' '}
+                <span className="num opacity-90">
+                  {formatCents(bestAsk(bookQ.data, 'yes') ?? outcomePrice(market, 'yes'))}
+                </span>
+              </Button>
+              <Button variant="no" size="lg" onClick={() => openTicket('no')}>
+                Buy No{' '}
+                <span className="num opacity-90">
+                  {formatCents(bestAsk(bookQ.data, 'no') ?? outcomePrice(market, 'no'))}
+                </span>
+              </Button>
             </div>
           </div>
-        </div>
-      </div>
+          <Sheet
+            open={sheetOpen}
+            onClose={() => setSheetOpen(false)}
+            title={<span className="line-clamp-1">{market.title}</span>}
+          >
+            {panel}
+          </Sheet>
+        </>
+      )}
     </div>
   );
 }

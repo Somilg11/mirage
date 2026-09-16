@@ -1,27 +1,48 @@
-import { Link } from 'react-router-dom';
+import { Link, Navigate, useParams, useRouteError } from 'react-router-dom';
+import { ArrowLeft, Compass } from 'lucide-react';
+import { Button } from '../components/ui/Button';
 
 export function NotFoundPage() {
   return (
-    <div className="min-h-screen flex items-center justify-center px-4">
-      <div className="text-center">
-        <div className="flex justify-center mb-6">
-          <img src="/logo.svg" alt="Mirage" className="h-16 w-16 animate-bounce" />
+    <div className="grid min-h-[60vh] place-items-center text-center">
+      <div>
+        <div className="mx-auto grid size-14 place-items-center rounded-2xl bg-surface-3 text-muted">
+          <Compass className="size-6" />
         </div>
-        <h1 className="text-4xl font-bold text-white mb-2">404</h1>
-        <p className="text-lg text-gray-400 mb-6">Page not found</p>
-        <p className="text-sm text-gray-500 mb-8 max-w-md mx-auto">
-          The page you're looking for doesn't exist or has been moved. Let's get you back on track.
-        </p>
-        <Link
-          to="/"
-          className="inline-flex items-center gap-2 px-6 py-2.5 bg-white text-gray-900 font-semibold rounded-lg hover:bg-white/80 transition-all duration-200 active:scale-95 mt-10"
-        >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-          </svg>
-          Back to Home
+        <p className="num mt-6 text-sm font-semibold text-primary">404</p>
+        <h1 className="mt-2 text-3xl font-bold tracking-tight">Page not found</h1>
+        <p className="mx-auto mt-2 max-w-sm text-muted">The page you're looking for doesn't exist or has been moved.</p>
+        <Link to="/" className="mt-8 inline-block">
+          <Button>
+            <ArrowLeft className="size-4" /> Back to markets
+          </Button>
         </Link>
       </div>
     </div>
   );
+}
+
+export function RouteErrorPage() {
+  const error = useRouteError();
+  const message = error instanceof Error ? error.message : 'An unexpected error occurred.';
+  return (
+    <div className="grid min-h-dvh place-items-center bg-bg px-4 text-center text-fg">
+      <div className="max-w-md">
+        <h1 className="text-2xl font-bold">Something went wrong</h1>
+        <p className="mt-2 break-words text-sm text-muted">{message}</p>
+        <div className="mt-6 flex justify-center gap-2">
+          <Button onClick={() => window.location.reload()}>Reload</Button>
+          <Button variant="outline" onClick={() => window.location.assign('/')}>
+            Go home
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Keeps pre-redesign `/market/:id` links working. */
+export function LegacyMarketRedirect() {
+  const { id } = useParams();
+  return <Navigate to={`/markets/${id}`} replace />;
 }

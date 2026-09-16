@@ -1,0 +1,22 @@
+# Local development infrastructure.
+#   docker compose up -d        -> Postgres on localhost:5432
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: mirage
+      POSTGRES_PASSWORD: mirage
+      POSTGRES_DB: mirage
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mirage -d mirage"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  postgres-data:

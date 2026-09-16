@@ -68,13 +68,13 @@ const sampleData = [...]
 
 Never hardcode:
 
-* probabilities
-* prices
-* market volumes
-* liquidity
-* balances
-* positions
-* order counts
+- probabilities
+- prices
+- market volumes
+- liquidity
+- balances
+- positions
+- order counts
 
 Everything must come from backend APIs.
 
@@ -170,14 +170,14 @@ Mobile:
 
 Each card displays:
 
-* market image
-* market title
-* probability
-* volume
-* liquidity
-* expiry
-* buy yes
-* buy no
+- market image
+- market title
+- probability
+- volume
+- liquidity
+- expiry
+- buy yes
+- buy no
 
 Click card:
 
@@ -207,12 +207,12 @@ Layout should closely resemble Mirage.
 
 Display:
 
-* image
-* title
-* volume
-* liquidity
-* status
-* end date
+- image
+- title
+- volume
+- liquidity
+- status
+- end date
 
 ### Probability Chart
 
@@ -239,10 +239,10 @@ Display all outcomes returned by backend.
 
 Show:
 
-* outcome
-* probability
-* buy yes
-* buy no
+- outcome
+- probability
+- buy yes
+- buy no
 
 ---
 
@@ -275,10 +275,10 @@ POST /sell
 
 After mutation:
 
-* invalidate market query
-* invalidate balance query
-* invalidate positions query
-* show success toast
+- invalidate market query
+- invalidate balance query
+- invalidate positions query
+- show success toast
 
 ---
 
@@ -298,12 +298,12 @@ GET /positions
 
 Display:
 
-* market
-* outcome
-* shares
-* average entry
-* pnl
-* current value
+- market
+- outcome
+- shares
+- average entry
+- pnl
+- current value
 
 ---
 
@@ -325,19 +325,19 @@ Use TanStack Table.
 
 Features:
 
-* sorting
-* filtering
-* pagination
+- sorting
+- filtering
+- pagination
 
 Columns:
 
-* type
-* market
-* outcome
-* price
-* amount
-* status
-* createdAt
+- type
+- market
+- outcome
+- price
+- amount
+- status
+- createdAt
 
 ---
 
@@ -359,17 +359,17 @@ Display trading activity from backend data.
 
 Contains:
 
-* logo
-* search
-* trending
-* politics
-* crypto
-* sports
-* technology
-* economy
-* bookmarks
-* portfolio
-* orders
+- logo
+- search
+- trending
+- politics
+- crypto
+- sports
+- technology
+- economy
+- bookmarks
+- portfolio
+- orders
 
 Collapsible sidebar.
 
@@ -379,11 +379,11 @@ Collapsible sidebar.
 
 Contains:
 
-* search
-* balance
-* notifications
-* profile menu
-* theme switch
+- search
+- balance
+- notifications
+- profile menu
+- theme switch
 
 Balance source:
 
@@ -397,9 +397,9 @@ GET /balance
 
 Use Zustand only for:
 
-* theme
-* sidebar
-* filters
+- theme
+- sidebar
+- filters
 
 Do NOT store server data in Zustand.
 
@@ -428,10 +428,10 @@ api/
 
 Requirements:
 
-* Axios instance
-* interceptors
-* typed responses
-* error handling
+- Axios instance
+- interceptors
+- typed responses
+- error handling
 
 ---
 
@@ -483,13 +483,13 @@ Mirage UI
 
 Characteristics:
 
-* dark theme
-* navy background
-* soft borders
-* subtle shadows
-* rounded cards
-* hover animations
-* premium trading feel
+- dark theme
+- navy background
+- soft borders
+- subtle shadows
+- rounded cards
+- hover animations
+- premium trading feel
 
 Use Tailwind.
 
@@ -513,9 +513,9 @@ Never use spinners as primary loading state.
 
 Display:
 
-* error card
-* retry button
-* useful message
+- error card
+- retry button
+- useful message
 
 ---
 
@@ -523,10 +523,10 @@ Display:
 
 Create dedicated empty states for:
 
-* portfolio
-* orders
-* markets
-* activity
+- portfolio
+- orders
+- markets
+- activity
 
 ---
 
@@ -534,11 +534,11 @@ Create dedicated empty states for:
 
 Required:
 
-* React.lazy
-* code splitting
-* memoization
-* query caching
-* virtualization when needed
+- React.lazy
+- code splitting
+- memoization
+- query caching
+- virtualization when needed
 
 ---
 
@@ -595,10 +595,10 @@ Continue until the frontend is fully connected to backend APIs and production-re
 
 The application should:
 
-* look very similar to Mirage
-* use only backend data
-* contain zero mock data
-* be fully typed
-* be fully responsive
-* be production ready
-* be maintainable and scalable
+- look very similar to Mirage
+- use only backend data
+- contain zero mock data
+- be fully typed
+- be fully responsive
+- be production ready
+- be maintainable and scalable
