@@ -1,7 +1,6 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Get a free hosted Postgres database in seconds: `npx create-db`
+// Mirage prediction market schema.
+// Conventions: all money is integer cents; prices are cents per share in [1, 99];
+// a winning share pays out 100 cents.
 
 generator client {
   provider = "prisma-client"
@@ -12,61 +11,163 @@ datasource db {
   provider = "postgresql"
 }
 
-model User {
-  id       String   @id @default(uuid())
-  address String    @unique
-  usdBalance Int    @default(0) // $100.11 -> 10011
-  lastClaimDate DateTime?
-  positions Position[]
-  order OrderHistory[]
-  @@index([address])
-}
-
-model Market {
-  id          String   @id @default(uuid())
-  title       String
-  description String
-  resolutionDescription  String
-  yesOrderBook Json
-  noOrderBook  Json
-  totalQty    Int
-  positions   Position[]
-  order OrderHistory[]
-  resolution PositionType?
-}
-
-model Position {
-  id       String   @id @default(uuid())
-  userId   String
-  marketId String
-  type    PositionType
-  user    User     @relation(fields: [userId], references: [id])
-  market   Market   @relation(fields: [marketId], references: [id])
-  qty      Int
-  @@unique([userId, marketId, type])
-}
-
-model OrderHistory {
-  id        String   @id @default(uuid())
-  orderType OrderType
-  qty      Int
-  price    Int
-  userId   String
-  marketId String
-  createdAt DateTime @default(now())
-
-  user    User     @relation(fields: [userId], references: [id])
-  market   Market   @relation(fields: [marketId], references: [id])
-}
-
-enum PositionType {
+enum Outcome {
   Yes
   No
 }
 
-enum OrderType {
+enum OrderSide {
+  Buy
+  Sell
+}
+
+/// Side of the unified book expressed in YES terms.
+/// Buy YES and Sell NO are bids; Sell YES and Buy NO are asks.
+enum BookSide {
+  Bid
+  Ask
+}
+
+enum OrderStatus {
+  Open
+  Filled
+  Cancelled
+}
+
+enum TimeInForce {
+  GTC
+  IOC
+}
+
+enum MarketStatus {
+  Open
+  Resolved
+}
+
+enum ActivityType {
+  Claim
   Buy
   Sell
   Split
   Merge
+  Payout
+}
+
+model User {
+  id            String     @id @default(uuid())
+  address       String     @unique
+  /// Spendable cash in cents. Cash escrowed by open buy orders is already deducted.
+  usdBalance    Int        @default(0)
+  lastClaimDate DateTime?
+  createdAt     DateTime   @default(now())
+  positions     Position[]
+  orders        Order[]
+  activities    Activity[]
+}
+
+model Market {
+  id         String       @id @default(uuid())
+  slug       String       @unique
+  title      String
+  description String
+  rules      String
+  category   String       @default("General")
+  imageUrl   String?
+  status     MarketStatus @default(Open)
+  resolution Outcome?
+  endDate    DateTime
+  resolvedAt DateTime?
+  /// Traded notional in cents (taker side).
+  volume     Int          @default(0)
+  /// Last traded YES price in cents.
+  lastPrice  Int?
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+  positions  Position[]
+  orders     Order[]
+  trades     Trade[]
+  activities Activity[]
+
+  @@index([status, endDate])
+  @@index([category])
+}
+
+model Position {
+  id        String   @id @default(uuid())
+  userId    String
+  marketId  String
+  outcome   Outcome
+  /// Total shares held, including shares escrowed by open sell orders.
+  qty       Int
+  lockedQty Int      @default(0)
+  /// Total cost in cents of the shares currently held.
+  costBasis Int      @default(0)
+  updatedAt DateTime @default(now()) @updatedAt
+  user      User     @relation(fields: [userId], references: [id])
+  market    Market   @relation(fields: [marketId], references: [id])
+
+  @@unique([userId, marketId, outcome])
+  @@index([marketId])
+}
+
+model Order {
+  id             String      @id @default(uuid())
+  userId         String
+  marketId       String
+  outcome        Outcome
+  side           OrderSide
+  bookSide       BookSide
+  /// Limit price in the order's own outcome terms.
+  price          Int
+  /// Limit price in YES terms (price for YES orders, 100 - price for NO orders).
+  yesPrice       Int
+  quantity       Int
+  filledQuantity Int         @default(0)
+  status         OrderStatus @default(Open)
+  timeInForce    TimeInForce @default(GTC)
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+  user           User        @relation(fields: [userId], references: [id])
+  market         Market      @relation(fields: [marketId], references: [id])
+  makerTrades    Trade[]     @relation("MakerOrder")
+  takerTrades    Trade[]     @relation("TakerOrder")
+
+  @@index([marketId, status, bookSide, yesPrice, createdAt])
+  @@index([userId, status, createdAt])
+}
+
+model Trade {
+  id           String    @id @default(uuid())
+  marketId     String
+  makerOrderId String
+  takerOrderId String
+  /// Execution price in YES terms (the maker's limit).
+  yesPrice     Int
+  quantity     Int
+  takerOutcome Outcome
+  takerSide    OrderSide
+  createdAt    DateTime  @default(now())
+  market       Market    @relation(fields: [marketId], references: [id])
+  makerOrder   Order     @relation("MakerOrder", fields: [makerOrderId], references: [id])
+  takerOrder   Order     @relation("TakerOrder", fields: [takerOrderId], references: [id])
+
+  @@index([marketId, createdAt])
+}
+
+/// Append-only ledger of balance-affecting events per user.
+model Activity {
+  id        String       @id @default(uuid())
+  userId    String
+  marketId  String?
+  type      ActivityType
+  outcome   Outcome?
+  quantity  Int?
+  price     Int?
+  /// Signed cash delta in cents.
+  amount    Int          @default(0)
+  createdAt DateTime     @default(now())
+  user      User         @relation(fields: [userId], references: [id])
+  market    Market?      @relation(fields: [marketId], references: [id])
+
+  @@index([userId, createdAt])
 }

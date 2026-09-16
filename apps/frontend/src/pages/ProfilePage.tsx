@@ -1,86 +1,171 @@
-import { useAuthToken } from '../hooks/useAuthToken';
-import { useBalance } from '../hooks/queries';
-import { claimDaily } from '../api/claim';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { queryKeys } from '../hooks/queries';
+import { useEffect, useState } from 'react';
+import { toast } from 'sonner';
+import { Check, Copy, Gift, Moon, ShieldCheck, Sun } from 'lucide-react';
+import { useClaimDaily, useMe, usePortfolio } from '../hooks/queries';
+import { useTheme } from '../providers/ThemeProvider';
+import { errorMessage } from '../api/client';
+import { formatCountdown, formatDate, formatUsd, shortAddress } from '../lib/format';
+import { Card, CardHeader, Skeleton, Stat } from '../components/ui/primitives';
+import { Button } from '../components/ui/Button';
+import { Avatar } from '../components/layout/AuthControls';
+import { RequireAuth } from '../components/portfolio/SignInPrompt';
 
-function WalletIcon() {
+function useNow(intervalMs = 1000) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = window.setInterval(() => setNow(Date.now()), intervalMs);
+    return () => window.clearInterval(id);
+  }, [intervalMs]);
+  return now;
+}
+
+function DailyReward() {
+  const me = useMe();
+  const claim = useClaimDaily();
+  const now = useNow();
+
+  const nextClaimAt = me.data?.nextClaimAt ? new Date(me.data.nextClaimAt).getTime() : null;
+  const waiting = nextClaimAt != null && nextClaimAt > now;
+
+  async function onClaim() {
+    try {
+      await claim.mutateAsync();
+      toast.success('Daily reward claimed', { description: 'Your balance has been topped up.' });
+    } catch (err) {
+      toast.error('Could not claim reward', { description: errorMessage(err) });
+    }
+  }
+
   return (
-    <div className="flex items-center justify-center w-12 h-12 bg-white/5 ring-1 ring-white/10">
-      <svg className="w-6 h-6 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="square" strokeLinejoin="miter" strokeWidth={1.5} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
-      </svg>
-    </div>
+    <Card className="relative overflow-hidden">
+      <div
+        aria-hidden
+        className="pointer-events-none absolute -right-16 -top-16 size-48 rounded-full bg-warn/10 blur-3xl"
+      />
+      <CardHeader title="Daily reward" description="Top up your paper balance once per day (UTC)." />
+      <div className="relative flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
+        <div className="flex items-center gap-3">
+          <div className="grid size-12 place-items-center rounded-2xl bg-warn-soft text-warn">
+            <Gift className="size-6" />
+          </div>
+          <div>
+            <div className="num text-2xl font-bold">+$100.00</div>
+            <div className="text-xs text-muted">
+              {waiting ? `Next reward in ${formatCountdown(nextClaimAt - now)}` : 'Available now'}
+            </div>
+          </div>
+        </div>
+        <Button
+          size="lg"
+          className="sm:w-44"
+          disabled={waiting || !me.data}
+          loading={claim.isPending}
+          onClick={onClaim}
+        >
+          {waiting ? 'Claimed today' : 'Claim reward'}
+        </Button>
+      </div>
+    </Card>
+  );
+}
+
+function AccountCard() {
+  const me = useMe();
+  const portfolio = usePortfolio();
+  const [copied, setCopied] = useState(false);
+
+  async function copy() {
+    if (!me.data) return;
+    await navigator.clipboard.writeText(me.data.address);
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 1500);
+  }
+
+  return (
+    <Card className="p-5 sm:p-6">
+      {me.isPending ? (
+        <div className="flex items-center gap-4">
+          <Skeleton className="size-16 rounded-full" />
+          <div className="space-y-2">
+            <Skeleton className="h-5 w-40" />
+            <Skeleton className="h-3 w-28" />
+          </div>
+        </div>
+      ) : me.data ? (
+        <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-4">
+            <Avatar seed={me.data.address} className="size-16" />
+            <div className="min-w-0">
+              <button
+                type="button"
+                onClick={copy}
+                className="flex items-center gap-2 font-mono text-lg font-semibold hover:text-primary"
+                title="Copy wallet address"
+              >
+                {shortAddress(me.data.address, 6)}
+                {copied ? <Check className="size-4 text-yes" /> : <Copy className="size-4 text-muted" />}
+              </button>
+              <div className="mt-1 flex items-center gap-1.5 text-xs text-muted">
+                <ShieldCheck className="size-3.5 text-yes" /> Solana wallet · Joined {formatDate(me.data.createdAt)}
+              </div>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-6 sm:flex sm:gap-10">
+            <Stat label="Cash" value={formatUsd(me.data.balance)} />
+            <Stat label="Portfolio" value={portfolio.data ? formatUsd(portfolio.data.totalValue) : '—'} />
+          </div>
+        </div>
+      ) : null}
+    </Card>
+  );
+}
+
+function Preferences() {
+  const { theme, setTheme } = useTheme();
+  return (
+    <Card>
+      <CardHeader title="Preferences" />
+      <div className="flex items-center justify-between gap-4 p-4 sm:p-5">
+        <div>
+          <div className="text-sm font-medium">Appearance</div>
+          <div className="text-xs text-muted">Choose how Mirage looks on this device.</div>
+        </div>
+        <div className="inline-flex rounded-lg bg-surface-3 p-0.5">
+          {(['light', 'dark'] as const).map(t => (
+            <button
+              key={t}
+              type="button"
+              onClick={() => setTheme(t)}
+              aria-pressed={theme === t}
+              className={`flex h-8 items-center gap-1.5 rounded-md px-3 text-[13px] font-semibold capitalize ${theme === t ? 'bg-surface text-fg shadow-card' : 'text-muted hover:text-fg'}`}
+            >
+              {t === 'light' ? <Sun className="size-3.5" /> : <Moon className="size-3.5" />}
+              {t}
+            </button>
+          ))}
+        </div>
+      </div>
+    </Card>
   );
 }
 
 export function ProfilePage() {
-  const token = useAuthToken();
-  const balance = useBalance(token);
-  const qc = useQueryClient();
-
-  const claimMutation = useMutation({
-    mutationFn: () => claimDaily(token),
-    onSuccess: async () => {
-      await qc.invalidateQueries({ queryKey: queryKeys.balance });
-    },
-  });
-
-  if (!token) {
-    return (
-      <div className="bg-white/5 ring-1 ring-white/10 p-4 sm:p-6">
-        <div className="text-sm font-semibold">Sign in to view your profile</div>
-        <div className="mt-1 text-xs sm:text-sm text-gray-400">Profile page requires authentication.</div>
-      </div>
-    );
-  }
-
   return (
-    <div className="bg-white/5 ring-1 ring-white/10 overflow-hidden">
-      <div className="p-4 sm:p-5 border-b border-white/5">
-        <div className="text-sm sm:text-base font-semibold text-left">Profile</div>
-      </div>
-
-      <div className="p-4 sm:p-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
-          <div className="bg-black/20 ring-1 ring-white/10 p-4 sm:p-6 hover:bg-black/25 transition-all duration-200">
-            <div className="flex items-start gap-4">
-              <WalletIcon />
-              <div className="flex-1">
-                <div className="text-xs text-gray-400 mb-1">Account Balance</div>
-                <div className="text-2xl sm:text-3xl font-semibold transition-all duration-200">
-                  {balance.isLoading ? '—' : (balance.data ? `$${(balance.data.balance / 100).toFixed(2)}` : '$0.00')}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-black/20 ring-1 ring-white/10 p-4 sm:p-6 hover:bg-black/25 transition-all duration-200">
-            <div className="text-xs text-gray-400 mb-2">Daily Claim</div>
-            <div className="text-xs sm:text-sm text-gray-300 mb-3">Claim $100 daily to trade with paper money.</div>
-            <button
-              className="w-full bg-white/10 px-3 py-2 text-xs font-semibold text-white ring-1 ring-white/20 hover:bg-white/15 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 active:scale-95"
-              disabled={claimMutation.isPending || claimMutation.isSuccess}
-              onClick={() => claimMutation.mutate()}
-            >
-              {claimMutation.isPending ? 'Claiming...' : claimMutation.isSuccess ? 'Claimed Today' : 'Claim $100'}
-            </button>
-            {claimMutation.isSuccess && (
-              <div className="mt-2 text-xs text-green-300 transition-all duration-200">Successfully claimed $100!</div>
-            )}
-            {claimMutation.isError && (
-              <div className="mt-2 text-xs text-red-300 transition-all duration-200">{(claimMutation.error as Error).message}</div>
-            )}
-          </div>
-        </div>
-
-        <div className="mt-4 sm:mt-6 bg-black/20 ring-1 ring-white/10 p-4 hover:bg-black/25 transition-all duration-200">
-          <div className="text-xs text-gray-400">About Paper Trading</div>
-          <div className="mt-1 text-xs sm:text-sm text-gray-300">
-            This is a simulation environment with no real money involved. You can claim $100 daily to practice trading prediction markets.
-          </div>
-        </div>
-      </div>
+    <div className="mx-auto max-w-3xl space-y-5">
+      <h1 className="text-2xl font-bold tracking-tight">Profile</h1>
+      <RequireAuth
+        title="Sign in to view your profile"
+        description="Connect a Solana wallet to start paper trading with $100 of free credit every day."
+      >
+        <AccountCard />
+        <DailyReward />
+      </RequireAuth>
+      <Preferences />
+      <Card className="p-4 text-sm leading-relaxed text-muted sm:p-5">
+        <span className="font-semibold text-fg">About paper trading.</span> Mirage is a simulation. Balances have no
+        monetary value and cannot be withdrawn. Markets are resolved by administrators according to each market's
+        published rules.
+      </Card>
     </div>
   );
 }
