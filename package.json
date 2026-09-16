@@ -19,7 +19,7 @@
   "devDependencies": {
     "prettier": "^3.7.4",
     "turbo": "^2.9.16",
-    "typescript": "5.9.2"
+    "typescript": "7.0.2"
   },
   "engines": {
     "bun": ">=1.3.10",
