@@ -6,32 +6,32 @@ Related documents: [API reference](./api.md) · [Architecture](./architecture.md
 
 Primary sources:
 
-| Concern                                          | File                                     |
-| ------------------------------------------------ | ---------------------------------------- |
-| Pure matching and settlement math                | `apps/backend/src/engine/matching.ts`    |
-| Order placement, cancellation, listing           | `apps/backend/src/services/orders.ts`    |
-| Cash and share escrow primitives                 | `apps/backend/src/services/ledger.ts`    |
-| Market row lock and tradability check            | `apps/backend/src/services/market-lock.ts` |
-| Pricing, order book, price history               | `apps/backend/src/services/markets.ts`   |
-| Split, merge, portfolio valuation                | `apps/backend/src/services/positions.ts` |
-| Daily claim, account balances                    | `apps/backend/src/services/users.ts`     |
-| Market creation and resolution                   | `apps/backend/src/services/admin.ts`     |
-| Shared constants and request schemas             | `packages/shared/src/`                   |
-| Data model                                       | `packages/db/prisma/schema.prisma`       |
+| Concern                                | File                                       |
+| -------------------------------------- | ------------------------------------------ |
+| Pure matching and settlement math      | `apps/backend/src/engine/matching.ts`      |
+| Order placement, cancellation, listing | `apps/backend/src/services/orders.ts`      |
+| Cash and share escrow primitives       | `apps/backend/src/services/ledger.ts`      |
+| Market row lock and tradability check  | `apps/backend/src/services/market-lock.ts` |
+| Pricing, order book, price history     | `apps/backend/src/services/markets.ts`     |
+| Split, merge, portfolio valuation      | `apps/backend/src/services/positions.ts`   |
+| Daily claim, account balances          | `apps/backend/src/services/users.ts`       |
+| Market creation and resolution         | `apps/backend/src/services/admin.ts`       |
+| Shared constants and request schemas   | `packages/shared/src/`                     |
+| Data model                             | `packages/db/prisma/schema.prisma`         |
 
 ---
 
 ## 1. Units and constants
 
-| Constant             | Value     | Meaning                                                        |
-| -------------------- | --------- | -------------------------------------------------------------- |
-| Money unit           | 1 cent    | Every balance, price, amount and volume is an **integer** of cents. There are no floats in storage. |
-| `PRICE_MIN`          | `1`       | Lowest limit price in cents per share.                         |
-| `PRICE_MAX`          | `99`      | Highest limit price in cents per share.                        |
-| `SHARE_PAYOUT_CENTS` | `100`     | A winning share pays 100¢ ($1.00). A losing share pays 0.      |
-| `MAX_ORDER_QUANTITY` | `100000`  | Maximum shares per order, split or merge.                      |
-| `DAILY_CLAIM_CENTS`  | `10000`   | Default daily reward ($100). Overridable via `DAILY_CLAIM_CENTS` env. |
-| `STARTING_BALANCE_CENTS` | `1000` (env default) | Cash credited when a user row is first created ($10). |
+| Constant                 | Value                | Meaning                                                                                             |
+| ------------------------ | -------------------- | --------------------------------------------------------------------------------------------------- |
+| Money unit               | 1 cent               | Every balance, price, amount and volume is an **integer** of cents. There are no floats in storage. |
+| `PRICE_MIN`              | `1`                  | Lowest limit price in cents per share.                                                              |
+| `PRICE_MAX`              | `99`                 | Highest limit price in cents per share.                                                             |
+| `SHARE_PAYOUT_CENTS`     | `100`                | A winning share pays 100¢ ($1.00). A losing share pays 0.                                           |
+| `MAX_ORDER_QUANTITY`     | `100000`             | Maximum shares per order, split or merge.                                                           |
+| `DAILY_CLAIM_CENTS`      | `10000`              | Default daily reward ($100). Overridable via `DAILY_CLAIM_CENTS` env.                               |
+| `STARTING_BALANCE_CENTS` | `1000` (env default) | Cash credited when a user row is first created ($10).                                               |
 
 Displayed probabilities are prices: a YES price of 62¢ means a 62% implied chance.
 
@@ -39,7 +39,7 @@ Displayed probabilities are prices: a YES price of 62¢ means a 62% implied chan
 
 Every market is binary with two outcomes, **YES** and **NO**. One YES share plus one NO share of the same market is always worth exactly 100¢, because exactly one of them pays out at resolution. That identity drives everything below:
 
-- **Minting**: 100¢ of cash can be turned into 1 YES + 1 NO (a *pair*).
+- **Minting**: 100¢ of cash can be turned into 1 YES + 1 NO (a _pair_).
 - **Merging**: 1 YES + 1 NO can be turned back into 100¢.
 - A NO share priced at `p` is economically equivalent to the complement of a YES share priced at `100 − p`.
 
@@ -53,12 +53,12 @@ Holdings live in `Position(userId, marketId, outcome)` with:
 
 Mirage runs a single central limit order book per market, quoted in YES terms. Each order is stored with its own-terms `price` and a projected `bookSide` and `yesPrice` (`toBook` in the engine):
 
-| Order            | `bookSide` | `yesPrice`   | Intuition                               |
-| ---------------- | ---------- | ------------ | --------------------------------------- |
-| Buy YES @ _p_    | `Bid`      | _p_          | Wants YES exposure                      |
-| Sell NO @ _p_    | `Bid`      | 100 − _p_    | Giving up NO is gaining YES exposure    |
-| Sell YES @ _p_   | `Ask`      | _p_          | Giving up YES exposure                  |
-| Buy NO @ _p_     | `Ask`      | 100 − _p_    | NO exposure is short YES exposure       |
+| Order          | `bookSide` | `yesPrice` | Intuition                            |
+| -------------- | ---------- | ---------- | ------------------------------------ |
+| Buy YES @ _p_  | `Bid`      | _p_        | Wants YES exposure                   |
+| Sell NO @ _p_  | `Bid`      | 100 − _p_  | Giving up NO is gaining YES exposure |
+| Sell YES @ _p_ | `Ask`      | _p_        | Giving up YES exposure               |
+| Buy NO @ _p_   | `Ask`      | 100 − _p_  | NO exposure is short YES exposure    |
 
 Rule: `bookSide = Bid` when `(outcome = YES) == (side = Buy)`, else `Ask`. Conversion between YES terms and own terms is `toOwnPrice(outcome, x) = outcome == YES ? x : 100 − x` (it is its own inverse).
 
@@ -82,19 +82,19 @@ Resting orders owned by the taker are **skipped** (they are excluded by the data
 
 Because every order is projected onto one book, four economic cases fall out of a single bid/ask cross:
 
-| Taker/maker pair      | Economic effect                            |
-| --------------------- | ------------------------------------------ |
-| Buy YES × Sell YES    | YES shares transfer seller → buyer         |
-| Buy YES × Buy NO      | A new YES/NO pair is **minted**            |
-| Sell NO × Sell YES    | A YES/NO pair is **merged** back into cash |
-| Sell NO × Buy NO      | NO shares transfer seller → buyer          |
+| Taker/maker pair   | Economic effect                            |
+| ------------------ | ------------------------------------------ |
+| Buy YES × Sell YES | YES shares transfer seller → buyer         |
+| Buy YES × Buy NO   | A new YES/NO pair is **minted**            |
+| Sell NO × Sell YES | A YES/NO pair is **merged** back into cash |
+| Sell NO × Buy NO   | NO shares transfer seller → buyer          |
 
 Settlement of one fill for one participant (`settleFill`), with `e` = execution YES price, `q` = fill quantity, `own = toOwnPrice(order.outcome, e)`:
 
-| Participant side | Shares                         | Cash credited on the fill                        | Ledger `amount` |
-| ---------------- | ------------------------------ | ------------------------------------------------ | --------------- |
-| Buy              | `+q` of its outcome, `costBasis += own × q` | maker: `(limit − own) × q` refund; taker: `0` | `−own × q`      |
-| Sell             | `−q` of its outcome, `lockedQty −= q`, cost basis released proportionally | `own × q` | `+own × q`      |
+| Participant side | Shares                                                                    | Cash credited on the fill                     | Ledger `amount` |
+| ---------------- | ------------------------------------------------------------------------- | --------------------------------------------- | --------------- |
+| Buy              | `+q` of its outcome, `costBasis += own × q`                               | maker: `(limit − own) × q` refund; taker: `0` | `−own × q`      |
+| Sell             | `−q` of its outcome, `lockedQty −= q`, cost basis released proportionally | `own × q`                                     | `+own × q`      |
 
 A maker always executes at its own limit (`own = maker.price`), so the maker refund term evaluates to `0` in practice; the formula exists so the escrow model is explicit. Each participant also receives an `Activity` row (`Buy`/`Sell`) per fill.
 
@@ -102,50 +102,50 @@ A maker always executes at its own limit (`own = maker.price`), so the maker ref
 
 All examples use 10 shares. "Upfront" is what happens when the taker order is accepted; "fill" is the settlement.
 
-**A. Transfer YES** – Ann rests *Sell YES @ 60* (Ask 60). Bob sends *Buy YES @ 65*.
+**A. Transfer YES** – Ann rests _Sell YES @ 60_ (Ask 60). Bob sends _Buy YES @ 65_.
 
-| Step                        | Ann (maker, Sell YES)            | Bob (taker, Buy YES)               |
-| --------------------------- | -------------------------------- | ---------------------------------- |
-| Ann places order            | locks 10 YES (`lockedQty +10`)   | –                                  |
-| Bob upfront                 | –                                | cash −600 (executed cost 60 × 10)  |
-| Fill at `e = 60`            | cash +600, YES −10, locked −10   | YES +10, costBasis +600            |
+| Step             | Ann (maker, Sell YES)          | Bob (taker, Buy YES)              |
+| ---------------- | ------------------------------ | --------------------------------- |
+| Ann places order | locks 10 YES (`lockedQty +10`) | –                                 |
+| Bob upfront      | –                              | cash −600 (executed cost 60 × 10) |
+| Fill at `e = 60` | cash +600, YES −10, locked −10 | YES +10, costBasis +600           |
 
 Bob limited at 65 but paid 60. Volume +600.
 
-**B. Mint a pair** – Ann rests *Buy NO @ 45* (Ask 55). Bob sends *Buy YES @ 58*.
+**B. Mint a pair** – Ann rests _Buy NO @ 45_ (Ask 55). Bob sends _Buy YES @ 58_.
 
-| Step                  | Ann (maker, Buy NO)                  | Bob (taker, Buy YES)              |
-| --------------------- | ------------------------------------ | --------------------------------- |
-| Ann places order      | cash −450 (escrow at limit 45 × 10)  | –                                 |
-| Bob upfront           | –                                    | cash −550 (55 × 10)               |
-| Fill at `e = 55`      | NO +10, costBasis +450, refund 0     | YES +10, costBasis +550           |
+| Step             | Ann (maker, Buy NO)                 | Bob (taker, Buy YES)    |
+| ---------------- | ----------------------------------- | ----------------------- |
+| Ann places order | cash −450 (escrow at limit 45 × 10) | –                       |
+| Bob upfront      | –                                   | cash −550 (55 × 10)     |
+| Fill at `e = 55` | NO +10, costBasis +450, refund 0    | YES +10, costBasis +550 |
 
 Total cash in: 450 + 550 = 1000 = 10 pairs × 100¢. Volume +550 (taker's own price).
 
-**C. Merge a pair** – Ann rests *Sell NO @ 30* (Bid 70). Bob sends *Sell YES @ 65* (Ask 65).
+**C. Merge a pair** – Ann rests _Sell NO @ 30_ (Bid 70). Bob sends _Sell YES @ 65_ (Ask 65).
 
-| Step                  | Ann (maker, Sell NO)             | Bob (taker, Sell YES)              |
-| --------------------- | -------------------------------- | ---------------------------------- |
-| Ann places order      | locks 10 NO                      | –                                  |
-| Bob upfront           | –                                | locks 10 YES                       |
-| Fill at `e = 70`      | cash +300 (own 30), NO −10       | cash +700 (own 70), YES −10        |
+| Step             | Ann (maker, Sell NO)       | Bob (taker, Sell YES)       |
+| ---------------- | -------------------------- | --------------------------- |
+| Ann places order | locks 10 NO                | –                           |
+| Bob upfront      | –                          | locks 10 YES                |
+| Fill at `e = 70` | cash +300 (own 30), NO −10 | cash +700 (own 70), YES −10 |
 
 1000¢ is released for 10 burned pairs. Bob asked for 65 and received 70.
 
-**D. Transfer NO** – Ann rests *Buy NO @ 40* (Ask 60). Bob sends *Sell NO @ 35* (Bid 65).
+**D. Transfer NO** – Ann rests _Buy NO @ 40_ (Ask 60). Bob sends _Sell NO @ 35_ (Bid 65).
 
-| Step                  | Ann (maker, Buy NO)                 | Bob (taker, Sell NO)              |
-| --------------------- | ----------------------------------- | --------------------------------- |
-| Ann places order      | cash −400 (escrow 40 × 10)          | –                                 |
-| Bob upfront           | –                                   | locks 10 NO                       |
-| Fill at `e = 60`      | NO +10, costBasis +400, refund 0    | cash +400 (own 40), NO −10        |
+| Step             | Ann (maker, Buy NO)              | Bob (taker, Sell NO)       |
+| ---------------- | -------------------------------- | -------------------------- |
+| Ann places order | cash −400 (escrow 40 × 10)       | –                          |
+| Bob upfront      | –                                | locks 10 NO                |
+| Fill at `e = 60` | NO +10, costBasis +400, refund 0 | cash +400 (own 40), NO −10 |
 
 ## 5. Escrow model
 
-| Order side | When accepted                                                                                    | While resting                          | On fill                          | On cancel                                  |
-| ---------- | ------------------------------------------------------------------------------------------------ | -------------------------------------- | -------------------------------- | ------------------------------------------ |
-| Buy        | Taker debit = `Σ(own × q)` over fills **+** `limit × restingQty` (`takerBuyCost`)               | Cash is gone from `usdBalance`         | Shares credited                  | `limit × (quantity − filledQuantity)` refunded |
-| Sell       | `lockedQty += quantity` for the **whole** order, only if `qty − lockedQty ≥ quantity`           | Shares stay in `qty`, counted in `lockedQty` | `qty −= q`, `lockedQty −= q`, cash credited | `lockedQty −= remaining`                   |
+| Order side | When accepted                                                                         | While resting                                | On fill                                     | On cancel                                      |
+| ---------- | ------------------------------------------------------------------------------------- | -------------------------------------------- | ------------------------------------------- | ---------------------------------------------- |
+| Buy        | Taker debit = `Σ(own × q)` over fills **+** `limit × restingQty` (`takerBuyCost`)     | Cash is gone from `usdBalance`               | Shares credited                             | `limit × (quantity − filledQuantity)` refunded |
+| Sell       | `lockedQty += quantity` for the **whole** order, only if `qty − lockedQty ≥ quantity` | Shares stay in `qty`, counted in `lockedQty` | `qty −= q`, `lockedQty −= q`, cash credited | `lockedQty −= remaining`                       |
 
 - `restingQty` is `0` for IOC orders, so an IOC buyer is only debited for what executed.
 - Cash debits are a single conditional statement: `UPDATE "User" SET "usdBalance" = "usdBalance" − amount WHERE id = … AND "usdBalance" >= amount`. Zero updated rows means `INSUFFICIENT_BALANCE`.
@@ -154,10 +154,10 @@ Total cash in: 450 + 550 = 1000 = 10 pairs × 100¢. Volume +550 (taker's own pr
 
 ## 6. Time in force
 
-| `timeInForce` | Behaviour                                                                                           |
-| ------------- | --------------------------------------------------------------------------------------------------- |
-| `GTC` (default) | Match what crosses, rest the remainder on the book (`status = Open`).                              |
-| `IOC`         | Match what crosses, cancel the remainder. If **nothing** fills, the request fails with `409 NO_LIQUIDITY` and the whole transaction rolls back (no order row is written). A partial IOC is stored with `status = Cancelled` and `filledQuantity > 0`; for sells the unfilled shares are unlocked. |
+| `timeInForce`   | Behaviour                                                                                                                                                                                                                                                                                         |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GTC` (default) | Match what crosses, rest the remainder on the book (`status = Open`).                                                                                                                                                                                                                             |
+| `IOC`           | Match what crosses, cancel the remainder. If **nothing** fills, the request fails with `409 NO_LIQUIDITY` and the whole transaction rolls back (no order row is written). A partial IOC is stored with `status = Cancelled` and `filledQuantity > 0`; for sells the unfilled shares are unlocked. |
 
 The web app implements a **market order** as IOC: it walks the visible book to estimate shares and sends the worst price level reached as the limit.
 
@@ -228,9 +228,9 @@ sequenceDiagram
 
 ## 9. Split and merge
 
-| Operation | Preconditions                                                                 | Effect                                                                                                  |
-| --------- | ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
-| Split `q` | Market tradable (`Open` and before `endDate`); cash ≥ `100q`                  | cash −`100q`; YES +`q` and NO +`q`; each side `costBasis += 50q`; `Activity(Split, amount −100q)`      |
+| Operation | Preconditions                                                                               | Effect                                                                                                   |
+| --------- | ------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| Split `q` | Market tradable (`Open` and before `endDate`); cash ≥ `100q`                                | cash −`100q`; YES +`q` and NO +`q`; each side `costBasis += 50q`; `Activity(Split, amount −100q)`        |
 | Merge `q` | Market not `Resolved` (allowed after `endDate`); available YES ≥ `q` and available NO ≥ `q` | YES −`q` and NO −`q` with proportional cost-basis release; cash +`100q`; `Activity(Merge, amount +100q)` |
 
 Both run under the market row lock. Merge failing either side returns `INSUFFICIENT_SHARES`.
@@ -246,7 +246,7 @@ Portfolio valuation (`getPortfolio`, positions with `qty > 0` only):
 
 | Field            | Formula                                                                                       |
 | ---------------- | --------------------------------------------------------------------------------------------- |
-| `currentPrice`   | implied `yesPrice` for YES, `100 − yesPrice` for NO; `null` when the market has no price       |
+| `currentPrice`   | implied `yesPrice` for YES, `100 − yesPrice` for NO; `null` when the market has no price      |
 | `avgPrice`       | `round(costBasis / qty, 2 decimals)`                                                          |
 | `value`          | `currentPrice × qty` (locked shares included); falls back to `costBasis` when price is `null` |
 | `pnl`            | `value − costBasis` (unrealized only)                                                         |
@@ -278,11 +278,11 @@ INSERT INTO "Activity" (...) SELECT ... 'Claim', :amount ... FROM claimed
 
 Stored status is `Open` or `Resolved`. The API derives a third state:
 
-| DTO `status` | Condition                              | Orders / split | Cancel | Merge | Resolve |
-| ------------ | -------------------------------------- | -------------- | ------ | ----- | ------- |
-| `open`       | `status = Open` and `endDate > now`    | allowed        | allowed | allowed | allowed |
-| `closed`     | `status = Open` and `endDate ≤ now`    | `409 MARKET_CLOSED` | allowed | allowed | allowed |
-| `resolved`   | `status = Resolved`                    | `409 MARKET_CLOSED` | n/a (no open orders) | `409 MARKET_CLOSED` | `409 MARKET_CLOSED` |
+| DTO `status` | Condition                           | Orders / split      | Cancel               | Merge               | Resolve             |
+| ------------ | ----------------------------------- | ------------------- | -------------------- | ------------------- | ------------------- |
+| `open`       | `status = Open` and `endDate > now` | allowed             | allowed              | allowed             | allowed             |
+| `closed`     | `status = Open` and `endDate ≤ now` | `409 MARKET_CLOSED` | allowed              | allowed             | allowed             |
+| `resolved`   | `status = Resolved`                 | `409 MARKET_CLOSED` | n/a (no open orders) | `409 MARKET_CLOSED` | `409 MARKET_CLOSED` |
 
 Resolution (`POST /api/admin/markets/:id/resolve`, one transaction under the market lock):
 
@@ -320,11 +320,11 @@ On every placement that produces fills, in the same transaction:
 
 `GET /api/markets/:id/prices?interval=` buckets trades by time:
 
-| Interval | Window                                   | Bucket                                                        |
-| -------- | ---------------------------------------- | ------------------------------------------------------------- |
-| `1d`     | 24 hours                                 | 15 minutes                                                    |
-| `1w`     | 7 days                                   | 1 hour                                                        |
-| `1m`     | 30 days                                  | 6 hours                                                       |
+| Interval | Window                                    | Bucket                                                        |
+| -------- | ----------------------------------------- | ------------------------------------------------------------- |
+| `1d`     | 24 hours                                  | 15 minutes                                                    |
+| `1w`     | 7 days                                    | 1 hour                                                        |
+| `1m`     | 30 days                                   | 6 hours                                                       |
 | `all`    | from `min(market.createdAt, first trade)` | `max(1h, ceil((now − start) / 200 / 1h) × 1h)` (≈ 200 points) |
 
 Algorithm:
@@ -356,35 +356,35 @@ Each side is capped at 50 levels. Levels are aggregated, so individual orders an
 
 ## 16. Invariants and where they are tested
 
-| Invariant                                                                                                   | Test                                                           |
-| ----------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
-| `Σ cash + Σ escrowed buy cash + 100 × outstanding pairs` is constant across placements, fills, cancels, splits (claims and payouts excluded) | `apps/backend/tests/matching.test.ts` – 5,000-step randomized simulation |
-| YES supply equals NO supply at all times                                                                    | same simulation                                                |
-| All four order kinds project correctly; transfer/mint/merge/NO-transfer settle correctly                    | `matching.test.ts` unit tests                                  |
-| Price-time priority, no match without crossing, self-trade skip                                             | `matching.test.ts`                                             |
-| Escrow balances, cancel refunds, double-cancel rejection, IOC no-liquidity and partial IOC, insufficient funds, split/merge, claim once per day, resolution payouts and refunds, pagination | `apps/backend/tests/api.test.ts` (runs when `TEST_DATABASE_URL` is set) |
-| Concurrent daily claims (exactly one succeeds)                                                              | `api.test.ts`, enabled with `TEST_CONCURRENCY=1`               |
+| Invariant                                                                                                                                                                                   | Test                                                                     |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| `Σ cash + Σ escrowed buy cash + 100 × outstanding pairs` is constant across placements, fills, cancels, splits (claims and payouts excluded)                                                | `apps/backend/tests/matching.test.ts` – 5,000-step randomized simulation |
+| YES supply equals NO supply at all times                                                                                                                                                    | same simulation                                                          |
+| All four order kinds project correctly; transfer/mint/merge/NO-transfer settle correctly                                                                                                    | `matching.test.ts` unit tests                                            |
+| Price-time priority, no match without crossing, self-trade skip                                                                                                                             | `matching.test.ts`                                                       |
+| Escrow balances, cancel refunds, double-cancel rejection, IOC no-liquidity and partial IOC, insufficient funds, split/merge, claim once per day, resolution payouts and refunds, pagination | `apps/backend/tests/api.test.ts` (runs when `TEST_DATABASE_URL` is set)  |
+| Concurrent daily claims (exactly one succeeds)                                                                                                                                              | `api.test.ts`, enabled with `TEST_CONCURRENCY=1`                         |
 
 ## 17. Error codes
 
 All errors use the envelope `{ "error": { "code", "message", "details"? } }`.
 
-| HTTP | `code`                 | Raised when                                                                                       |
-| ---- | ---------------------- | ------------------------------------------------------------------------------------------------- |
+| HTTP | `code`                 | Raised when                                                                                                  |
+| ---- | ---------------------- | ------------------------------------------------------------------------------------------------------------ |
 | 400  | `VALIDATION_ERROR`     | Query/body fails its zod schema (`details` holds flattened field errors); market `endDate` not in the future |
-| 400  | `INVALID_JSON`         | Request body is not valid JSON                                                                    |
-| 400  | `INSUFFICIENT_BALANCE` | Conditional cash debit affected no rows (buy order, split)                                        |
-| 400  | `INSUFFICIENT_SHARES`  | Not enough unlocked shares to sell or merge                                                       |
-| 401  | `UNAUTHORIZED`         | Missing bearer token, rejected Supabase session, invalid admin key                                |
-| 403  | `FORBIDDEN`            | Verified user has no wallet `address` claim, or the address exceeds 128 characters               |
-| 404  | `NOT_FOUND`            | Unknown market, order (or order owned by another user), route; admin routes when `ADMIN_API_KEY` is unset |
-| 409  | `MARKET_CLOSED`        | Order or split on a non-tradable market; merge or resolve on a resolved market                    |
-| 409  | `NO_LIQUIDITY`         | IOC order found nothing to match                                                                  |
-| 409  | `ORDER_NOT_OPEN`       | Cancel of an order that is filled or cancelled                                                    |
-| 409  | `ALREADY_CLAIMED`      | Daily reward already claimed in the current UTC day                                               |
-| 409  | `CONFLICT`             | Explicit market `slug` already exists                                                             |
-| 413  | `PAYLOAD_TOO_LARGE`    | JSON body over 100 KB                                                                             |
-| 429  | `RATE_LIMITED`         | Global or order rate limit exceeded                                                               |
-| 500  | `INTERNAL`             | Unhandled error (logged with request id; no internals leaked)                                     |
+| 400  | `INVALID_JSON`         | Request body is not valid JSON                                                                               |
+| 400  | `INSUFFICIENT_BALANCE` | Conditional cash debit affected no rows (buy order, split)                                                   |
+| 400  | `INSUFFICIENT_SHARES`  | Not enough unlocked shares to sell or merge                                                                  |
+| 401  | `UNAUTHORIZED`         | Missing bearer token, rejected Supabase session, invalid admin key                                           |
+| 403  | `FORBIDDEN`            | Verified user has no wallet `address` claim, or the address exceeds 128 characters                           |
+| 404  | `NOT_FOUND`            | Unknown market, order (or order owned by another user), route; admin routes when `ADMIN_API_KEY` is unset    |
+| 409  | `MARKET_CLOSED`        | Order or split on a non-tradable market; merge or resolve on a resolved market                               |
+| 409  | `NO_LIQUIDITY`         | IOC order found nothing to match                                                                             |
+| 409  | `ORDER_NOT_OPEN`       | Cancel of an order that is filled or cancelled                                                               |
+| 409  | `ALREADY_CLAIMED`      | Daily reward already claimed in the current UTC day                                                          |
+| 409  | `CONFLICT`             | Explicit market `slug` already exists                                                                        |
+| 413  | `PAYLOAD_TOO_LARGE`    | JSON body over 100 KB                                                                                        |
+| 429  | `RATE_LIMITED`         | Global or order rate limit exceeded                                                                          |
+| 500  | `INTERNAL`             | Unhandled error (logged with request id; no internals leaked)                                                |
 
 `GET /api/health` is the one exception to the envelope: it returns `503` with `{ "status": "degraded", "db": "error" }` when the database probe fails.

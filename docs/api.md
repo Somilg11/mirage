@@ -19,16 +19,16 @@ Related documents: [Core exchange logic](./core.md) · [Architecture](./architec
 
 ## Conventions
 
-| Topic         | Convention                                                                                              |
-| ------------- | ------------------------------------------------------------------------------------------------------- |
-| Base URL      | `https://<api-host>/api` (local: `http://localhost:3000/api`; the web dev server proxies `/api`)        |
-| Format        | JSON request and response bodies, `Content-Type: application/json`, max body 100 KB                     |
-| Money         | Integer **cents**. `balance: 12345` is $123.45                                                          |
-| Prices        | Integer cents per share, `1`–`99`. Fields documented as "YES price" are in YES terms (see [core.md §3](./core.md#3-the-unified-book-yes-terms)) |
-| Dates         | ISO-8601 UTC strings                                                                                    |
-| Enums         | Lowercase in the API (`yes`, `buy`, `open`); `timeInForce` is `GTC` or `IOC`                            |
-| Identifiers   | Market routes accept either the market `id` (UUID) or its `slug` in `:id`                               |
-| Request ids   | Send `X-Request-Id` (≤128 chars) to correlate logs; the response always echoes/assigns `X-Request-Id`   |
+| Topic       | Convention                                                                                                                                      |
+| ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| Base URL    | `https://<api-host>/api` (local: `http://localhost:3000/api`; the web dev server proxies `/api`)                                                |
+| Format      | JSON request and response bodies, `Content-Type: application/json`, max body 100 KB                                                             |
+| Money       | Integer **cents**. `balance: 12345` is $123.45                                                                                                  |
+| Prices      | Integer cents per share, `1`–`99`. Fields documented as "YES price" are in YES terms (see [core.md §3](./core.md#3-the-unified-book-yes-terms)) |
+| Dates       | ISO-8601 UTC strings                                                                                                                            |
+| Enums       | Lowercase in the API (`yes`, `buy`, `open`); `timeInForce` is `GTC` or `IOC`                                                                    |
+| Identifiers | Market routes accept either the market `id` (UUID) or its `slug` in `:id`                                                                       |
+| Request ids | Send `X-Request-Id` (≤128 chars) to correlate logs; the response always echoes/assigns `X-Request-Id`                                           |
 
 ### Error envelope
 
@@ -48,9 +48,9 @@ Related documents: [Core exchange logic](./core.md) · [Architecture](./architec
 
 List endpoints that can grow unbounded use opaque cursor pagination:
 
-| Query param | Type   | Notes                                                           |
-| ----------- | ------ | --------------------------------------------------------------- |
-| `limit`     | int    | Page size, `1`–`100`. Default varies per endpoint.              |
+| Query param | Type   | Notes                                                            |
+| ----------- | ------ | ---------------------------------------------------------------- |
+| `limit`     | int    | Page size, `1`–`100`. Default varies per endpoint.               |
 | `cursor`    | string | Value of `nextCursor` from the previous page. Omit for page one. |
 
 The response carries `nextCursor: string | null`; `null` means there are no more pages. Cursors are opaque (currently the id of the last item) and are only valid with the same filters and sort. Applies to `GET /markets`, `GET /markets/:id/trades`, `GET /orders`, `GET /activity`.
@@ -66,12 +66,12 @@ curl "http://localhost:3000/api/markets?limit=24&cursor=5d41effa-525e-4688-b9c3-
 
 ## Authentication
 
-| Mode             | How to authenticate                                 | Used for                                   |
-| ---------------- | --------------------------------------------------- | ------------------------------------------ |
-| Public           | nothing                                             | health, market data                        |
-| User             | `Authorization: Bearer <Supabase access token>`     | account, orders, split/merge               |
-| Dev bypass       | `X-Dev-Address: <any address>` (no token)           | local development and tests only           |
-| Admin            | `X-Admin-Key: <ADMIN_API_KEY>`                      | market creation and resolution             |
+| Mode       | How to authenticate                             | Used for                         |
+| ---------- | ----------------------------------------------- | -------------------------------- |
+| Public     | nothing                                         | health, market data              |
+| User       | `Authorization: Bearer <Supabase access token>` | account, orders, split/merge     |
+| Dev bypass | `X-Dev-Address: <any address>` (no token)       | local development and tests only |
+| Admin      | `X-Admin-Key: <ADMIN_API_KEY>`                  | market creation and resolution   |
 
 ### User flow
 
@@ -101,10 +101,10 @@ Admin routes require `X-Admin-Key` to equal `ADMIN_API_KEY` (≥32 chars, compar
 
 ## Rate limits, CORS and headers
 
-| Limiter  | Scope                                               | Limit                 | Key                 |
-| -------- | --------------------------------------------------- | --------------------- | ------------------- |
-| Global   | every `/api/*` route except `/api/health`           | 300 requests / minute | client IP           |
-| Orders   | `POST /api/orders` (applied after authentication)   | 30 requests / minute  | user id (IP fallback) |
+| Limiter | Scope                                             | Limit                 | Key                   |
+| ------- | ------------------------------------------------- | --------------------- | --------------------- |
+| Global  | every `/api/*` route except `/api/health`         | 300 requests / minute | client IP             |
+| Orders  | `POST /api/orders` (applied after authentication) | 30 requests / minute  | user id (IP fallback) |
 
 - Exceeding a limit returns `429 RATE_LIMITED`.
 - Standard IETF draft-8 `RateLimit` and `RateLimit-Policy` headers are sent; legacy `X-RateLimit-*` headers are not.
@@ -121,26 +121,26 @@ Admin routes require `X-Admin-Key` to equal `ADMIN_API_KEY` (≥32 chars, compar
 
 ### Summary
 
-| Method | Path                                   | Auth  | Description                                  |
-| ------ | -------------------------------------- | ----- | -------------------------------------------- |
-| GET    | `/api/health`                          | –     | Liveness and database probe                  |
-| GET    | `/api/markets`                         | –     | Paginated, filterable market list            |
-| GET    | `/api/markets/categories`              | –     | Categories with open-market counts           |
-| GET    | `/api/markets/:id`                     | –     | Market detail                                |
-| GET    | `/api/markets/:id/orderbook`           | –     | Aggregated YES and NO order books            |
-| GET    | `/api/markets/:id/trades`              | –     | Paginated trade tape                         |
-| GET    | `/api/markets/:id/prices`              | –     | Bucketed YES price history                   |
-| POST   | `/api/markets/:id/split`               | User  | Convert cash into YES + NO pairs             |
-| POST   | `/api/markets/:id/merge`               | User  | Convert YES + NO pairs into cash             |
-| GET    | `/api/me`                              | User  | Current account and balances                 |
-| POST   | `/api/me/claim`                        | User  | Claim the daily reward                       |
-| GET    | `/api/portfolio`                       | User  | Cash, positions, valuation and P&L           |
-| GET    | `/api/activity`                        | User  | Paginated balance ledger                     |
-| GET    | `/api/orders`                          | User  | Paginated order history                      |
-| POST   | `/api/orders`                          | User  | Place an order                               |
-| DELETE | `/api/orders/:id`                      | User  | Cancel an open order                         |
-| POST   | `/api/admin/markets`                   | Admin | Create a market                              |
-| POST   | `/api/admin/markets/:id/resolve`       | Admin | Resolve a market and pay winners             |
+| Method | Path                             | Auth  | Description                        |
+| ------ | -------------------------------- | ----- | ---------------------------------- |
+| GET    | `/api/health`                    | –     | Liveness and database probe        |
+| GET    | `/api/markets`                   | –     | Paginated, filterable market list  |
+| GET    | `/api/markets/categories`        | –     | Categories with open-market counts |
+| GET    | `/api/markets/:id`               | –     | Market detail                      |
+| GET    | `/api/markets/:id/orderbook`     | –     | Aggregated YES and NO order books  |
+| GET    | `/api/markets/:id/trades`        | –     | Paginated trade tape               |
+| GET    | `/api/markets/:id/prices`        | –     | Bucketed YES price history         |
+| POST   | `/api/markets/:id/split`         | User  | Convert cash into YES + NO pairs   |
+| POST   | `/api/markets/:id/merge`         | User  | Convert YES + NO pairs into cash   |
+| GET    | `/api/me`                        | User  | Current account and balances       |
+| POST   | `/api/me/claim`                  | User  | Claim the daily reward             |
+| GET    | `/api/portfolio`                 | User  | Cash, positions, valuation and P&L |
+| GET    | `/api/activity`                  | User  | Paginated balance ledger           |
+| GET    | `/api/orders`                    | User  | Paginated order history            |
+| POST   | `/api/orders`                    | User  | Place an order                     |
+| DELETE | `/api/orders/:id`                | User  | Cancel an open order               |
+| POST   | `/api/admin/markets`             | Admin | Create a market                    |
+| POST   | `/api/admin/markets/:id/resolve` | Admin | Resolve a market and pay winners   |
 
 ---
 
@@ -164,14 +164,14 @@ Returns `503` with `{ "status": "degraded", "uptime": …, "db": "error" }` when
 
 Public. Paginated list of markets with live pricing.
 
-| Query      | Type                                   | Default   | Constraints / behaviour                                             |
-| ---------- | -------------------------------------- | --------- | ------------------------------------------------------------------- |
-| `status`   | `open` \| `resolved` \| `all`          | `open`    | `open` = stored `Open` **and** `endDate > now`                      |
-| `sort`     | `volume` \| `newest` \| `ending`       | `volume`  | `volume` desc; `createdAt` desc; `endDate` asc (ties by id)         |
-| `category` | string                                 | –         | 1–50 chars, case-insensitive exact match                             |
-| `q`        | string                                 | –         | ≤100 chars, case-insensitive substring of the title                 |
-| `limit`    | int                                    | `24`      | 1–100                                                                |
-| `cursor`   | string                                 | –         | ≤100 chars                                                            |
+| Query      | Type                             | Default  | Constraints / behaviour                                     |
+| ---------- | -------------------------------- | -------- | ----------------------------------------------------------- |
+| `status`   | `open` \| `resolved` \| `all`    | `open`   | `open` = stored `Open` **and** `endDate > now`              |
+| `sort`     | `volume` \| `newest` \| `ending` | `volume` | `volume` desc; `createdAt` desc; `endDate` asc (ties by id) |
+| `category` | string                           | –        | 1–50 chars, case-insensitive exact match                    |
+| `q`        | string                           | –        | ≤100 chars, case-insensitive substring of the title         |
+| `limit`    | int                              | `24`     | 1–100                                                       |
+| `cursor`   | string                           | –        | ≤100 chars                                                  |
 
 ```bash
 curl "http://localhost:3000/api/markets?category=Crypto&sort=volume&limit=2"
@@ -210,7 +210,12 @@ Errors: `400 VALIDATION_ERROR` (e.g. `sort=bogus`).
 Public. Categories of currently tradable markets, sorted by count desc then name.
 
 ```json
-{ "categories": [{ "name": "Crypto", "count": 2 }, { "name": "Politics", "count": 2 }] }
+{
+  "categories": [
+    { "name": "Crypto", "count": 2 },
+    { "name": "Politics", "count": 2 }
+  ]
+}
 ```
 
 #### `GET /api/markets/:id`
@@ -255,12 +260,24 @@ Public. Aggregated remaining size per price level, ≤50 levels per side. See [c
 {
   "marketId": "0b7c1e4a-3f8e-4a61-9d2b-6f1c2d9b7a10",
   "yes": {
-    "bids": [{ "price": 47, "quantity": 54 }, { "price": 46, "quantity": 116 }],
-    "asks": [{ "price": 49, "quantity": 118 }, { "price": 50, "quantity": 552 }]
+    "bids": [
+      { "price": 47, "quantity": 54 },
+      { "price": 46, "quantity": 116 }
+    ],
+    "asks": [
+      { "price": 49, "quantity": 118 },
+      { "price": 50, "quantity": 552 }
+    ]
   },
   "no": {
-    "bids": [{ "price": 51, "quantity": 118 }, { "price": 50, "quantity": 552 }],
-    "asks": [{ "price": 53, "quantity": 54 }, { "price": 54, "quantity": 116 }]
+    "bids": [
+      { "price": 51, "quantity": 118 },
+      { "price": 50, "quantity": 552 }
+    ],
+    "asks": [
+      { "price": 53, "quantity": 54 },
+      { "price": 54, "quantity": 116 }
+    ]
   }
 }
 ```
@@ -298,9 +315,9 @@ Public. Newest first.
 
 Public. Bucketed YES price series (see [core.md §13.4](./core.md#134-price-history)).
 
-| Query      | Type                              | Default |
-| ---------- | --------------------------------- | ------- |
-| `interval` | `1d` \| `1w` \| `1m` \| `all`     | `1m`    |
+| Query      | Type                          | Default |
+| ---------- | ----------------------------- | ------- |
+| `interval` | `1d` \| `1w` \| `1m` \| `all` | `1m`    |
 
 ```json
 {
@@ -318,9 +335,9 @@ Empty `points` when the market has never traded. Errors: `400`, `404`.
 
 User. Converts `100 × quantity` cents into `quantity` YES and `quantity` NO shares.
 
-| Body field | Type | Constraints   |
-| ---------- | ---- | ------------- |
-| `quantity` | int  | 1–100,000     |
+| Body field | Type | Constraints |
+| ---------- | ---- | ----------- |
+| `quantity` | int  | 1–100,000   |
 
 ```bash
 curl -X POST http://localhost:3000/api/markets/bitcoin-above-150k/split \
@@ -416,7 +433,15 @@ Paginated ledger, newest first.
     {
       "id": "d3a8a3d4-9c1b-44a9-8a7a-3b4c4f0b2c11",
       "type": "buy",
-      "market": { "id": "…", "slug": "fed-rate-cut-next-meeting", "title": "…", "category": "Economy", "imageUrl": null, "status": "open", "resolution": null },
+      "market": {
+        "id": "…",
+        "slug": "fed-rate-cut-next-meeting",
+        "title": "…",
+        "category": "Economy",
+        "imageUrl": null,
+        "status": "open",
+        "resolution": null
+      },
       "outcome": "yes",
       "quantity": 25,
       "price": 71,
@@ -448,19 +473,27 @@ All routes require user authentication.
 
 #### `GET /api/orders`
 
-| Query      | Type                              | Default | Behaviour                                                |
-| ---------- | --------------------------------- | ------- | -------------------------------------------------------- |
-| `status`   | `open` \| `closed` \| `all`       | `all`   | `closed` = `filled` or `cancelled`                       |
-| `marketId` | string                            | –       | Market **id** (slugs are not resolved on this filter)    |
-| `limit`    | int                               | `50`    | 1–100                                                    |
-| `cursor`   | string                            | –       | ≤100 chars                                               |
+| Query      | Type                        | Default | Behaviour                                             |
+| ---------- | --------------------------- | ------- | ----------------------------------------------------- |
+| `status`   | `open` \| `closed` \| `all` | `all`   | `closed` = `filled` or `cancelled`                    |
+| `marketId` | string                      | –       | Market **id** (slugs are not resolved on this filter) |
+| `limit`    | int                         | `50`    | 1–100                                                 |
+| `cursor`   | string                      | –       | ≤100 chars                                            |
 
 ```json
 {
   "orders": [
     {
       "id": "7ce23106-0e90-4a66-ace9-11030a853f4e",
-      "market": { "id": "…", "slug": "ai-imo-gold", "title": "…", "category": "Tech", "imageUrl": null, "status": "open", "resolution": null },
+      "market": {
+        "id": "…",
+        "slug": "ai-imo-gold",
+        "title": "…",
+        "category": "Tech",
+        "imageUrl": null,
+        "status": "open",
+        "resolution": null
+      },
       "outcome": "yes",
       "side": "buy",
       "price": 40,
@@ -480,14 +513,14 @@ All routes require user authentication.
 
 Places a limit order (GTC) or a marketable order (IOC). Additional per-user limit of 30/minute.
 
-| Body field    | Type                 | Default | Constraints                                   |
-| ------------- | -------------------- | ------- | --------------------------------------------- |
-| `marketId`    | string               | –       | Market id **or slug**                         |
-| `outcome`     | `yes` \| `no`        | –       |                                               |
-| `side`        | `buy` \| `sell`      | –       |                                               |
-| `price`       | int                  | –       | 1–99, limit price in the outcome's own terms  |
-| `quantity`    | int                  | –       | 1–100,000 shares                              |
-| `timeInForce` | `GTC` \| `IOC`       | `GTC`   |                                               |
+| Body field    | Type            | Default | Constraints                                  |
+| ------------- | --------------- | ------- | -------------------------------------------- |
+| `marketId`    | string          | –       | Market id **or slug**                        |
+| `outcome`     | `yes` \| `no`   | –       |                                              |
+| `side`        | `buy` \| `sell` | –       |                                              |
+| `price`       | int             | –       | 1–99, limit price in the outcome's own terms |
+| `quantity`    | int             | –       | 1–100,000 shares                             |
+| `timeInForce` | `GTC` \| `IOC`  | `GTC`   |                                              |
 
 ```bash
 curl -X POST http://localhost:3000/api/orders \
@@ -501,7 +534,15 @@ curl -X POST http://localhost:3000/api/orders \
 {
   "order": {
     "id": "a1d6a1b4-3a57-4a1d-9f53-1c5e0b1f2e70",
-    "market": { "id": "…", "slug": "bitcoin-above-150k", "title": "…", "category": "Crypto", "imageUrl": null, "status": "open", "resolution": null },
+    "market": {
+      "id": "…",
+      "slug": "bitcoin-above-150k",
+      "title": "…",
+      "category": "Crypto",
+      "imageUrl": null,
+      "status": "open",
+      "resolution": null
+    },
     "outcome": "yes",
     "side": "buy",
     "price": 50,
@@ -522,15 +563,15 @@ curl -X POST http://localhost:3000/api/orders \
 
 `fills[].price` and `averagePrice` are in the order's own outcome terms.
 
-| Status | Code                   | When                                                  |
-| ------ | ---------------------- | ----------------------------------------------------- |
-| 400    | `VALIDATION_ERROR`     | Schema violation                                      |
-| 400    | `INSUFFICIENT_BALANCE` | Buy cost exceeds spendable cash                       |
-| 400    | `INSUFFICIENT_SHARES`  | Sell quantity exceeds unlocked shares                 |
-| 404    | `NOT_FOUND`            | Unknown market                                        |
-| 409    | `MARKET_CLOSED`        | Market resolved or past `endDate`                     |
-| 409    | `NO_LIQUIDITY`         | IOC with nothing to match                             |
-| 429    | `RATE_LIMITED`         | Order limit exceeded                                  |
+| Status | Code                   | When                                  |
+| ------ | ---------------------- | ------------------------------------- |
+| 400    | `VALIDATION_ERROR`     | Schema violation                      |
+| 400    | `INSUFFICIENT_BALANCE` | Buy cost exceeds spendable cash       |
+| 400    | `INSUFFICIENT_SHARES`  | Sell quantity exceeds unlocked shares |
+| 404    | `NOT_FOUND`            | Unknown market                        |
+| 409    | `MARKET_CLOSED`        | Market resolved or past `endDate`     |
+| 409    | `NO_LIQUIDITY`         | IOC with nothing to match             |
+| 429    | `RATE_LIMITED`         | Order limit exceeded                  |
 
 #### `DELETE /api/orders/:id`
 
@@ -546,15 +587,15 @@ Requires `X-Admin-Key`. Returns `404` for every route when `ADMIN_API_KEY` is un
 
 #### `POST /api/admin/markets`
 
-| Body field    | Type     | Constraints                                                                  |
-| ------------- | -------- | ---------------------------------------------------------------------------- |
-| `title`       | string   | 10–200 chars (trimmed)                                                       |
-| `description` | string   | 1–5000 chars                                                                 |
-| `rules`       | string   | 1–5000 chars; resolution criteria shown to traders                          |
-| `category`    | string   | 1–50 chars                                                                   |
-| `endDate`     | string   | ISO-8601 datetime, must be in the future                                     |
-| `slug`        | string?  | kebab-case, ≤120 chars. Default: slugified title; a random suffix is appended on collision |
-| `imageUrl`    | string?  | absolute URL                                                                 |
+| Body field    | Type    | Constraints                                                                                |
+| ------------- | ------- | ------------------------------------------------------------------------------------------ |
+| `title`       | string  | 10–200 chars (trimmed)                                                                     |
+| `description` | string  | 1–5000 chars                                                                               |
+| `rules`       | string  | 1–5000 chars; resolution criteria shown to traders                                         |
+| `category`    | string  | 1–50 chars                                                                                 |
+| `endDate`     | string  | ISO-8601 datetime, must be in the future                                                   |
+| `slug`        | string? | kebab-case, ≤120 chars. Default: slugified title; a random suffix is appended on collision |
+| `imageUrl`    | string? | absolute URL                                                                               |
 
 ```bash
 curl -X POST http://localhost:3000/api/admin/markets \
@@ -618,11 +659,24 @@ interface MarketDetail extends MarketSummary {
   traders: number;
 }
 
-interface BookLevel { price: number; quantity: number }
-interface OutcomeBook { bids: BookLevel[]; asks: BookLevel[] }
-interface OrderBookResponse { marketId: string; yes: OutcomeBook; no: OutcomeBook }
+interface BookLevel {
+  price: number;
+  quantity: number;
+}
+interface OutcomeBook {
+  bids: BookLevel[];
+  asks: BookLevel[];
+}
+interface OrderBookResponse {
+  marketId: string;
+  yes: OutcomeBook;
+  no: OutcomeBook;
+}
 
-interface PricePoint { t: string; price: number } // YES cents
+interface PricePoint {
+  t: string;
+  price: number;
+} // YES cents
 
 interface TradeDTO {
   id: string;
@@ -678,8 +732,15 @@ interface OrderDTO {
   updatedAt: string;
 }
 
-interface FillDTO { price: number; quantity: number } // own terms
-interface PlaceOrderResponse { order: OrderDTO; fills: FillDTO[]; averagePrice: number | null }
+interface FillDTO {
+  price: number;
+  quantity: number;
+} // own terms
+interface PlaceOrderResponse {
+  order: OrderDTO;
+  fills: FillDTO[];
+  averagePrice: number | null;
+}
 
 interface ActivityDTO {
   id: string;
@@ -692,9 +753,14 @@ interface ActivityDTO {
   createdAt: string;
 }
 
-interface Paginated<T> { items: T[]; nextCursor: string | null }
+interface Paginated<T> {
+  items: T[];
+  nextCursor: string | null;
+}
 
-interface ApiErrorBody { error: { code: string; message: string; details?: unknown } }
+interface ApiErrorBody {
+  error: { code: string; message: string; details?: unknown };
+}
 ```
 
 List endpoints other than `/activity` wrap their items under a named key (`markets`, `trades`, `orders`) next to `nextCursor` instead of using `Paginated<T>`.
