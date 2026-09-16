@@ -7,6 +7,8 @@ import { ApiError } from '../api/client';
 import { AuthProvider } from '../providers/AuthProvider';
 import { ThemeProvider, useTheme } from '../providers/ThemeProvider';
 import { router } from './router';
+import { AppCrashScreen, ErrorBoundary } from '../components/errors/ErrorBoundary';
+import { TooltipProvider } from '../components/ui/tooltip';
 
 function createQueryClient() {
   return new QueryClient({
@@ -31,7 +33,7 @@ function ThemedToaster() {
       mobileOffset={{ top: 64 }}
       toastOptions={{
         classNames: {
-          toast: '!rounded-xl !border-border !bg-surface !text-fg !shadow-pop',
+          toast: '!rounded-md !border-border !bg-surface !text-fg !shadow-pop',
           description: '!text-muted',
         },
       }}
@@ -43,14 +45,18 @@ export function App() {
   const [queryClient] = useState(createQueryClient);
 
   return (
-    <ThemeProvider>
-      <QueryClientProvider client={queryClient}>
-        <AuthProvider>
-          <RouterProvider router={router} />
-          <ThemedToaster />
-        </AuthProvider>
-        {import.meta.env.DEV && <ReactQueryDevtools initialIsOpen={false} buttonPosition="bottom-left" />}
-      </QueryClientProvider>
-    </ThemeProvider>
+    <ErrorBoundary fallback={({ error }) => <AppCrashScreen error={error} />}>
+      <ThemeProvider>
+        <QueryClientProvider client={queryClient}>
+          <AuthProvider>
+            <TooltipProvider delayDuration={150}>
+              <RouterProvider router={router} />
+              <ThemedToaster />
+            </TooltipProvider>
+          </AuthProvider>
+          {import.meta.env.DEV && <ReactQueryDevtools initialIsOpen={false} buttonPosition="bottom-left" />}
+        </QueryClientProvider>
+      </ThemeProvider>
+    </ErrorBoundary>
   );
 }

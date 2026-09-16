@@ -14,24 +14,24 @@ import type { BookLevel, MarketSummary, OrderBookResponse, Outcome } from '@repo
 
 interface CategoryMeta {
   icon: LucideIcon;
-  /** Tailwind classes for the icon tile. Literal strings so Tailwind can detect them. */
+  /** Glyph colour class. Literal strings so Tailwind can detect them. */
   tile: string;
 }
 
 const CATEGORY_META: Record<string, CategoryMeta> = {
-  crypto: { icon: Bitcoin, tile: 'bg-amber-500/15 text-amber-500' },
-  politics: { icon: Landmark, tile: 'bg-sky-500/15 text-sky-500' },
-  tech: { icon: Cpu, tile: 'bg-violet-500/15 text-violet-500' },
-  technology: { icon: Cpu, tile: 'bg-violet-500/15 text-violet-500' },
-  science: { icon: FlaskConical, tile: 'bg-teal-500/15 text-teal-500' },
-  economy: { icon: LineChart, tile: 'bg-emerald-500/15 text-emerald-500' },
-  finance: { icon: LineChart, tile: 'bg-emerald-500/15 text-emerald-500' },
-  sports: { icon: Trophy, tile: 'bg-orange-500/15 text-orange-500' },
-  culture: { icon: Clapperboard, tile: 'bg-pink-500/15 text-pink-500' },
-  world: { icon: Globe, tile: 'bg-indigo-500/15 text-indigo-500' },
+  crypto: { icon: Bitcoin, tile: 'text-amber-500' },
+  politics: { icon: Landmark, tile: 'text-sky-500' },
+  tech: { icon: Cpu, tile: 'text-violet-500' },
+  technology: { icon: Cpu, tile: 'text-violet-500' },
+  science: { icon: FlaskConical, tile: 'text-teal-500' },
+  economy: { icon: LineChart, tile: 'text-emerald-500' },
+  finance: { icon: LineChart, tile: 'text-emerald-500' },
+  sports: { icon: Trophy, tile: 'text-orange-500' },
+  culture: { icon: Clapperboard, tile: 'text-pink-500' },
+  world: { icon: Globe, tile: 'text-indigo-500' },
 };
 
-const FALLBACK: CategoryMeta = { icon: Sparkles, tile: 'bg-primary-soft text-primary' };
+const FALLBACK: CategoryMeta = { icon: Sparkles, tile: 'text-primary' };
 
 export function categoryMeta(category: string): CategoryMeta {
   return CATEGORY_META[category.toLowerCase()] ?? FALLBACK;

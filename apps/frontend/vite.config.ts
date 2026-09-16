@@ -1,6 +1,8 @@
+import path from 'node:path';
 import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
+import securityHeaders from './src/security-headers.json';
 
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
@@ -8,6 +10,11 @@ export default defineConfig(({ mode }) => {
 
   return {
     plugins: [react(), tailwindcss()],
+    resolve: {
+      alias: { '@': path.resolve(import.meta.dirname, './src') },
+    },
+    // `vite preview` mirrors production headers so CSP issues surface before deploy.
+    preview: { headers: securityHeaders },
     server: {
       port: 5173,
       proxy: {

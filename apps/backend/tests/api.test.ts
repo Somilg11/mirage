@@ -308,4 +308,57 @@ describe.skipIf(!TEST_DATABASE_URL)('API (integration)', () => {
     await request(app).get('/api/markets?sort=bogus').expect(400);
     await request(app).get('/api/does-not-exist').expect(404);
   });
+
+  it('paginates markets, orders and trades with stable cursors', async () => {
+    // Markets: walk every page of this run's markets and ensure no duplicates or gaps.
+    const seen: string[] = [];
+    let cursor: string | null = null;
+    do {
+      const url = `/api/markets?q=${encodeURIComponent(run)}&status=all&sort=newest&limit=2${cursor ? `&cursor=${cursor}` : ''}`;
+      const page = (await request(app).get(url).expect(200)).body as {
+        markets: { id: string }[];
+        nextCursor: string | null;
+      };
+      expect(page.markets.length).toBeLessThanOrEqual(2);
+      seen.push(...page.markets.map(m => m.id));
+      cursor = page.nextCursor;
+    } while (cursor);
+    const all = (
+      await request(app)
+        .get(`/api/markets?q=${encodeURIComponent(run)}&status=all&limit=100`)
+        .expect(200)
+    ).body;
+    expect(new Set(seen).size).toBe(seen.length);
+    expect(seen.length).toBe(all.markets.length);
+    expect(all.nextCursor).toBeNull();
+
+    // Orders: two resting orders, one per page.
+    const market = await createMarket('pagination');
+    await order(alice, { marketId: market.id, outcome: 'yes', side: 'buy', price: 10, quantity: 1 }).expect(201);
+    await order(alice, { marketId: market.id, outcome: 'yes', side: 'buy', price: 11, quantity: 1 }).expect(201);
+    const first = await request(app).get(`/api/orders?marketId=${market.id}&limit=1`).set(as(alice)).expect(200);
+    expect(first.body.orders).toHaveLength(1);
+    expect(first.body.nextCursor).toBe(first.body.orders[0].id);
+    const second = await request(app)
+      .get(`/api/orders?marketId=${market.id}&limit=1&cursor=${first.body.nextCursor}`)
+      .set(as(alice))
+      .expect(200);
+    expect(second.body.orders[0].id).not.toBe(first.body.orders[0].id);
+    expect(second.body.nextCursor).toBeNull();
+    const closed = await request(app).get(`/api/orders?marketId=${market.id}&status=closed`).set(as(alice)).expect(200);
+    expect(closed.body.orders).toHaveLength(0);
+
+    // Trades: cross twice, then page through.
+    // Two separate maker orders from bob produce two fills (alice's own bids are skipped).
+    await order(bob, { marketId: market.id, outcome: 'yes', side: 'buy', price: 90, quantity: 1 }).expect(201);
+    await order(bob, { marketId: market.id, outcome: 'yes', side: 'buy', price: 89, quantity: 1 }).expect(201);
+    await order(alice, { marketId: market.id, outcome: 'no', side: 'buy', price: 90, quantity: 2 }).expect(201);
+    const t1 = await request(app).get(`/api/markets/${market.id}/trades?limit=1`).expect(200);
+    expect(t1.body.trades).toHaveLength(1);
+    expect(t1.body.nextCursor).not.toBeNull();
+    const t2 = await request(app)
+      .get(`/api/markets/${market.id}/trades?limit=1&cursor=${t1.body.nextCursor}`)
+      .expect(200);
+    expect(t2.body.trades[0].id).not.toBe(t1.body.trades[0].id);
+  });
 });

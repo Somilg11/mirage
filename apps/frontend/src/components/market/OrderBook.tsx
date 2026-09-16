@@ -25,12 +25,12 @@ function BookRow({ row, max, kind, onSelect }: { row: Row; max: number; kind: 'b
     <button
       type="button"
       onClick={onSelect}
-      className="group relative grid h-8 w-full grid-cols-[1fr_1fr_1fr] items-center px-4 text-left text-[13px] hover:bg-surface-2 sm:px-5"
+      className="group relative grid h-8 w-full grid-cols-[1fr_1fr_1fr] items-center px-4 text-left text-[13px] hover:bg-surface-2 "
     >
       <span
         aria-hidden
         className={cn(
-          'absolute inset-y-0.5 left-0 rounded-r-md transition-[width] duration-300',
+          'absolute inset-y-px left-0 transition-[width] duration-300',
           kind === 'bid' ? 'bg-yes-soft' : 'bg-no-soft',
         )}
         style={{ width }}
@@ -71,28 +71,28 @@ export function OrderBook({
 
   return (
     <section aria-label="Order book">
-      <div className="flex items-center justify-between gap-3 px-4 pt-4 sm:px-5 sm:pt-5">
-        <h2 className="text-[15px] font-semibold">Order book</h2>
+      <div className="flex items-center justify-between gap-3 px-4 pt-3">
+        <span className="text-xs text-muted">Prices shown for</span>
         <SegmentedControl
           ariaLabel="Order book outcome"
           size="xs"
           value={outcome}
           onChange={onOutcomeChange}
           options={[
-            { value: 'yes', label: 'Trade Yes' },
-            { value: 'no', label: 'Trade No' },
+            { value: 'yes', label: 'Yes' },
+            { value: 'no', label: 'No' },
           ]}
         />
       </div>
 
-      <div className="mt-3 grid grid-cols-[1fr_1fr_1fr] px-4 pb-1.5 text-[11px] font-semibold uppercase tracking-wide text-subtle sm:px-5">
+      <div className="mt-3 grid grid-cols-[1fr_1fr_1fr] px-4 pb-1.5 label-mono border-b border-border pt-0 ">
         <span>Price</span>
         <span className="text-right">Shares</span>
         <span className="text-right">Total</span>
       </div>
 
       {isLoading ? (
-        <div className="space-y-1.5 px-4 pb-4 sm:px-5">
+        <div className="space-y-1.5 px-4 pb-4 ">
           {Array.from({ length: 8 }).map((_, i) => (
             <Skeleton key={i} className="h-6" />
           ))}
@@ -115,7 +115,7 @@ export function OrderBook({
             )}
           </div>
 
-          <div className="my-1 flex items-center justify-between border-y border-border bg-surface-2/60 px-4 py-2 text-xs sm:px-5">
+          <div className="my-1 flex items-center justify-between border-y border-border bg-surface-2 px-4 py-2 text-xs ">
             <span className="text-muted">
               Last <span className="num font-semibold text-fg">{formatCents(last)}</span>
             </span>

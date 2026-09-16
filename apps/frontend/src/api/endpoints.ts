@@ -1,6 +1,7 @@
 import type {
   ActivityDTO,
   CreateOrderInput,
+  ListOrdersQuery,
   MarketDetail,
   MarketListQuery,
   MarketSummary,
@@ -24,13 +25,15 @@ export interface CategoryCount {
 export const api = {
   markets: {
     list: (params: MarketListQuery) =>
-      http.get<{ markets: MarketSummary[] }>('/markets', { params }).then(r => r.data.markets),
+      http.get<{ markets: MarketSummary[]; nextCursor: string | null }>('/markets', { params }).then(r => r.data),
     categories: () => http.get<{ categories: CategoryCount[] }>('/markets/categories').then(r => r.data.categories),
     get: (idOrSlug: string) =>
       http.get<{ market: MarketDetail }>(`/markets/${encodeURIComponent(idOrSlug)}`).then(r => r.data.market),
     orderBook: (id: string) => http.get<OrderBookResponse>(`/markets/${id}/orderbook`).then(r => r.data),
-    trades: (id: string, limit = 30) =>
-      http.get<{ trades: TradeDTO[] }>(`/markets/${id}/trades`, { params: { limit } }).then(r => r.data.trades),
+    trades: (id: string, params: { limit?: number; cursor?: string } = {}) =>
+      http
+        .get<{ trades: TradeDTO[]; nextCursor: string | null }>(`/markets/${id}/trades`, { params })
+        .then(r => r.data),
     prices: (id: string, params: PriceHistoryQuery) =>
       http.get<{ points: PricePoint[] }>(`/markets/${id}/prices`, { params }).then(r => r.data.points),
     split: (id: string, quantity: number) =>
@@ -46,8 +49,8 @@ export const api = {
     get: () => http.get<PortfolioDTO>('/portfolio').then(r => r.data),
   },
   orders: {
-    list: (params: { status?: 'open' | 'all'; marketId?: string } = {}) =>
-      http.get<{ orders: OrderDTO[] }>('/orders', { params }).then(r => r.data.orders),
+    list: (params: ListOrdersQuery = {}) =>
+      http.get<{ orders: OrderDTO[]; nextCursor: string | null }>('/orders', { params }).then(r => r.data),
     place: (input: CreateOrderInput) => http.post<PlaceOrderResponse>('/orders', input).then(r => r.data),
     cancel: (id: string) => http.delete<{ order: OrderDTO }>(`/orders/${id}`).then(r => r.data.order),
   },

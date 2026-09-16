@@ -86,7 +86,9 @@ async function summarize(markets: Market[]): Promise<MarketSummary[]> {
   return markets.map(m => toSummary(m, quotes.get(m.id), prior.get(m.id)));
 }
 
-export async function listMarkets(query: z.output<typeof marketListQuerySchema>): Promise<MarketSummary[]> {
+export async function listMarkets(
+  query: z.output<typeof marketListQuerySchema>,
+): Promise<{ markets: MarketSummary[]; nextCursor: string | null }> {
   const now = new Date();
   const where: Prisma.MarketWhereInput = {};
   if (query.status === 'open') Object.assign(where, { status: 'Open', endDate: { gt: now } });
@@ -95,13 +97,23 @@ export async function listMarkets(query: z.output<typeof marketListQuerySchema>)
   if (query.q) where.title = { contains: query.q, mode: 'insensitive' };
 
   const orderBy: Prisma.MarketOrderByWithRelationInput[] = {
-    volume: [{ volume: 'desc' as const }, { createdAt: 'desc' as const }],
-    newest: [{ createdAt: 'desc' as const }],
-    ending: [{ endDate: 'asc' as const }],
+    volume: [{ volume: 'desc' as const }, { createdAt: 'desc' as const }, { id: 'asc' as const }],
+    newest: [{ createdAt: 'desc' as const }, { id: 'asc' as const }],
+    ending: [{ endDate: 'asc' as const }, { id: 'asc' as const }],
   }[query.sort];
 
-  const markets = await prisma.market.findMany({ where, orderBy, take: 200 });
-  return summarize(markets);
+  // `id` is the final sort key, so an id cursor is a stable position in the ordering.
+  const rows = await prisma.market.findMany({
+    where,
+    orderBy,
+    take: query.limit + 1,
+    ...(query.cursor ? { cursor: { id: query.cursor }, skip: 1 } : {}),
+  });
+  const page = rows.slice(0, query.limit);
+  return {
+    markets: await summarize(page),
+    nextCursor: rows.length > query.limit ? (page.at(-1)?.id ?? null) : null,
+  };
 }
 
 export async function listCategories(): Promise<{ name: string; count: number }[]> {
@@ -168,14 +180,22 @@ export async function getOrderBook(idOrSlug: string): Promise<OrderBookResponse>
   };
 }
 
-export async function listTrades(idOrSlug: string, limit: number): Promise<TradeDTO[]> {
+export async function listTrades(
+  idOrSlug: string,
+  { limit, cursor }: { limit: number; cursor?: string },
+): Promise<{ trades: TradeDTO[]; nextCursor: string | null }> {
   const market = await findMarket(idOrSlug);
-  const trades = await prisma.trade.findMany({
+  const rows = await prisma.trade.findMany({
     where: { marketId: market.id },
     orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-    take: limit,
+    take: limit + 1,
+    ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
   });
-  return trades.map(toTradeDTO);
+  const page = rows.slice(0, limit);
+  return {
+    trades: page.map(toTradeDTO),
+    nextCursor: rows.length > limit ? (page.at(-1)?.id ?? null) : null,
+  };
 }
 
 const INTERVALS = {

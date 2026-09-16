@@ -2,17 +2,12 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Link, NavLink, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { Search, X } from 'lucide-react';
 import { useAuth } from '../../providers/AuthProvider';
+import { useCategories } from '../../hooks/queries';
 import { cn } from '../../lib/cn';
 import { Logo, LogoMark } from '../ui/Logo';
 import { Skeleton } from '../ui/primitives';
 import { Button } from '../ui/Button';
-import { AccountSummary, CashPill, SignInButton, ThemeToggle, UserMenu } from './AuthControls';
-
-const NAV = [
-  { to: '/', label: 'Markets', end: true },
-  { to: '/portfolio', label: 'Portfolio' },
-  { to: '/activity', label: 'Activity' },
-];
+import { AccountSummary, CashPill, ClaimButton, SignInButton, ThemeToggle, UserMenu } from './AuthControls';
 
 function SearchField({
   autoFocus,
@@ -40,7 +35,7 @@ function SearchField({
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
-      if (e.key === '/' && !['INPUT', 'TEXTAREA'].includes(target.tagName)) {
+      if (e.key === '/' && !['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)) {
         e.preventDefault();
         inputRef.current?.focus();
       }
@@ -65,7 +60,7 @@ function SearchField({
 
   return (
     <form onSubmit={onSubmit} role="search" className={cn('relative', className)}>
-      <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-subtle" />
+      <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-subtle" />
       <input
         ref={inputRef}
         autoFocus={autoFocus}
@@ -76,7 +71,7 @@ function SearchField({
         }}
         placeholder="Search markets"
         aria-label="Search markets"
-        className="h-10 w-full rounded-xl border border-transparent bg-surface-3 pl-9 pr-9 text-sm text-fg outline-none placeholder:text-subtle focus:border-primary/50 focus:bg-surface"
+        className="h-9 w-full rounded-md border border-border bg-surface-2 pl-8 pr-8 text-sm text-fg outline-none placeholder:text-subtle focus:border-primary/60 focus:bg-surface"
       />
       {value ? (
         <button
@@ -86,12 +81,12 @@ function SearchField({
             setValue('');
             apply('');
           }}
-          className="absolute right-2 top-1/2 grid size-6 -translate-y-1/2 place-items-center rounded-md text-subtle hover:text-fg"
+          className="absolute right-1.5 top-1/2 grid size-6 -translate-y-1/2 place-items-center rounded text-subtle hover:text-fg"
         >
           <X className="size-3.5" />
         </button>
       ) : (
-        <kbd className="pointer-events-none absolute right-3 top-1/2 hidden -translate-y-1/2 rounded border border-border-strong px-1.5 text-[11px] text-subtle md:block">
+        <kbd className="pointer-events-none absolute right-2 top-1/2 hidden -translate-y-1/2 rounded border border-border px-1.5 font-mono text-[11px] text-subtle md:block">
           /
         </kbd>
       )}
@@ -99,13 +94,65 @@ function SearchField({
   );
 }
 
+/** Secondary row: market filters as plain text links, like an exchange's section nav. */
+function MarketNav() {
+  const categories = useCategories();
+  const location = useLocation();
+  const [params] = useSearchParams();
+  const onHome = location.pathname === '/';
+  const category = onHome ? params.get('category') : null;
+  const sort = onHome ? params.get('sort') : null;
+
+  const links: { label: string; to: string; active: boolean }[] = [
+    { label: 'Trending', to: '/', active: onHome && !category && !sort },
+    { label: 'New', to: '/?sort=newest', active: onHome && !category && sort === 'newest' },
+    { label: 'Ending soon', to: '/?sort=ending', active: onHome && !category && sort === 'ending' },
+  ];
+
+  const linkClass = (active: boolean) =>
+    cn(
+      'flex h-full shrink-0 items-center border-b-2 text-[13px] font-medium transition-colors',
+      active ? 'border-fg text-fg' : 'border-transparent text-muted hover:text-fg',
+    );
+
+  return (
+    <nav aria-label="Market sections" className="border-t border-border">
+      <div className="no-scrollbar mx-auto flex h-10 max-w-[1320px] items-center gap-5 overflow-x-auto px-4 sm:px-6">
+        {links.map(link => (
+          <Link key={link.label} to={link.to} className={linkClass(link.active)}>
+            {link.label}
+          </Link>
+        ))}
+        <span className="h-4 w-px shrink-0 bg-border" aria-hidden />
+        {categories.isPending
+          ? Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-3 w-14 shrink-0" />)
+          : categories.data?.map(c => (
+              <Link
+                key={c.name}
+                to={`/?category=${encodeURIComponent(c.name)}`}
+                className={linkClass(category === c.name)}
+              >
+                {c.name}
+              </Link>
+            ))}
+      </div>
+    </nav>
+  );
+}
+
+const PRIMARY_NAV = [
+  { to: '/', label: 'Markets', end: true },
+  { to: '/portfolio', label: 'Portfolio' },
+  { to: '/activity', label: 'Activity' },
+];
+
 export function Header() {
   const { status } = useAuth();
   const [mobileSearch, setMobileSearch] = useState(false);
 
   return (
-    <header className="sticky top-0 z-40 border-b border-border bg-bg/85 backdrop-blur-xl supports-[backdrop-filter]:bg-bg/70">
-      <div className="mx-auto flex h-14 max-w-[1400px] items-center gap-3 px-4 sm:h-16 sm:px-6">
+    <header className="sticky top-0 z-40 border-b border-border bg-bg">
+      <div className="mx-auto flex h-14 max-w-[1320px] items-center gap-4 px-4 sm:px-6">
         {mobileSearch ? (
           <div className="flex w-full items-center gap-2 md:hidden">
             <SearchField autoFocus onDone={() => setMobileSearch(false)} className="flex-1" />
@@ -124,17 +171,17 @@ export function Header() {
               </span>
             </Link>
 
-            <SearchField className="hidden max-w-md flex-1 md:block" />
+            <SearchField className="hidden w-full max-w-[420px] md:block" />
 
-            <nav className="ml-2 hidden items-center gap-0.5 md:flex" aria-label="Primary">
-              {NAV.map(item => (
+            <nav className="hidden items-center gap-1 lg:flex" aria-label="Primary">
+              {PRIMARY_NAV.map(item => (
                 <NavLink
                   key={item.to}
                   to={item.to}
                   end={item.end}
                   className={({ isActive }) =>
                     cn(
-                      'rounded-lg px-3 py-2 text-sm font-medium transition-colors',
+                      'rounded-md px-2.5 py-1.5 text-[13px] font-medium transition-colors',
                       isActive ? 'text-fg' : 'text-muted hover:text-fg',
                     )
                   }
@@ -152,20 +199,24 @@ export function Header() {
                 onClick={() => setMobileSearch(true)}
                 aria-label="Search markets"
               >
-                <Search className="size-[18px]" />
+                <Search className="size-4" />
               </Button>
 
-              {status === 'loading' && <Skeleton className="h-8 w-24 rounded-full" />}
+              {status === 'loading' && <Skeleton className="h-8 w-28" />}
               {status === 'anonymous' && (
                 <>
                   <ThemeToggle />
-                  <SignInButton size="sm" />
+                  <SignInButton size="sm" variant="ghost" className="hidden sm:inline-flex">
+                    Log in
+                  </SignInButton>
+                  <SignInButton size="sm">Sign up</SignInButton>
                 </>
               )}
               {status === 'authenticated' && (
                 <>
                   <AccountSummary />
                   <CashPill />
+                  <ClaimButton />
                   <UserMenu />
                 </>
               )}
@@ -173,6 +224,7 @@ export function Header() {
           </>
         )}
       </div>
+      <MarketNav />
     </header>
   );
 }

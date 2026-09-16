@@ -3,17 +3,18 @@ import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YA
 import type { MarketDetail, PriceHistoryQuery } from '@repo/shared';
 import { usePriceHistory } from '../../hooks/queries';
 import { useThemeColors } from '../../hooks/useThemeColors';
+import { cn } from '../../lib/cn';
 import { formatProbability } from '../../lib/format';
-import { SegmentedControl, Skeleton } from '../ui/primitives';
+import { Skeleton } from '../ui/primitives';
 import { PriceChange } from './MarketBits';
 
 type Interval = NonNullable<PriceHistoryQuery['interval']>;
 
-const INTERVALS: { value: Interval; label: string }[] = [
-  { value: '1d', label: '1D' },
-  { value: '1w', label: '1W' },
-  { value: '1m', label: '1M' },
-  { value: 'all', label: 'All' },
+const INTERVALS: { value: Interval; label: string; caption: string }[] = [
+  { value: '1d', label: '1D', caption: 'past day' },
+  { value: '1w', label: '1W', caption: 'past week' },
+  { value: '1m', label: '1M', caption: 'past month' },
+  { value: 'all', label: 'ALL', caption: 'all time' },
 ];
 
 function tickFormatter(interval: Interval) {
@@ -28,8 +29,8 @@ function ChartTooltip({ active, payload }: { active?: boolean; payload?: Readonl
   const point = payload?.[0]?.payload as { t: number; price: number } | undefined;
   if (!active || !point) return null;
   return (
-    <div className="rounded-lg border border-border bg-surface px-2.5 py-1.5 shadow-pop">
-      <div className="num text-sm font-semibold text-fg">{formatProbability(point.price)} Yes</div>
+    <div className="rounded-md border border-border bg-surface px-2.5 py-1.5 shadow-pop">
+      <div className="num text-[13px] font-semibold text-fg">Yes {formatProbability(point.price)}</div>
       <div className="text-[11px] text-muted">
         {new Date(point.t).toLocaleString('en-US', {
           month: 'short',
@@ -56,48 +57,41 @@ export function PriceChart({ market }: { market: MarketDetail }) {
   const current = market.status === 'resolved' ? (market.resolution === 'yes' ? 100 : 0) : market.yesPrice;
   const first = data[0]?.price;
   const periodChange = current != null && first != null ? current - first : null;
-  const trendUp = (periodChange ?? 0) >= 0;
-  const stroke = trendUp ? colors.yes : colors.no;
 
   return (
-    <div>
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <div className="flex items-baseline gap-2">
-            <span className="num text-3xl font-bold tracking-tight text-fg sm:text-4xl">
-              {formatProbability(current)}
-            </span>
-            <span className="text-sm font-medium text-muted">chance</span>
-          </div>
-          <div className="mt-1 flex items-center gap-1.5 text-sm">
-            <PriceChange change={periodChange} />
-            {periodChange != null && periodChange !== 0 && (
-              <span className="text-muted">
-                {interval === 'all' ? 'all time' : `past ${INTERVALS.find(i => i.value === interval)?.label}`}
-              </span>
-            )}
-          </div>
-        </div>
-        <SegmentedControl ariaLabel="Chart range" size="xs" value={interval} onChange={setRange} options={INTERVALS} />
+    <div className="p-4">
+      <div className="flex items-center gap-1.5 text-xs text-muted">
+        <span className="size-2 rounded-full bg-primary" aria-hidden /> Yes
+      </div>
+      <div className="mt-1 flex flex-wrap items-baseline gap-x-2 gap-y-1">
+        <span className="num text-[28px] font-semibold leading-none tracking-tight text-fg">
+          {formatProbability(current)}
+        </span>
+        <span className="text-sm text-muted">chance</span>
+        {periodChange != null && periodChange !== 0 && (
+          <span className="text-xs text-muted">
+            <PriceChange change={periodChange} /> {INTERVALS.find(i => i.value === interval)?.caption}
+          </span>
+        )}
       </div>
 
       <div className="mt-4 h-56 sm:h-72">
         {prices.isPending ? (
-          <Skeleton className="size-full rounded-xl" />
+          <Skeleton className="size-full" />
         ) : data.length < 2 ? (
-          <div className="grid size-full place-items-center rounded-xl border border-dashed border-border text-sm text-muted">
-            No trades in this period yet
+          <div className="grid size-full place-items-center rounded-md border border-dashed border-border text-sm text-muted">
+            No trades in this period
           </div>
         ) : (
-          <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={data} margin={{ top: 8, right: 4, bottom: 0, left: -12 }}>
+          <ResponsiveContainer width="100%" height="100%" minWidth={0} initialDimension={{ width: 1, height: 1 }}>
+            <AreaChart data={data} margin={{ top: 8, right: 0, bottom: 0, left: 0 }}>
               <defs>
                 <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor={stroke} stopOpacity={0.28} />
-                  <stop offset="100%" stopColor={stroke} stopOpacity={0} />
+                  <stop offset="0%" stopColor={colors.primary} stopOpacity={0.16} />
+                  <stop offset="100%" stopColor={colors.primary} stopOpacity={0} />
                 </linearGradient>
               </defs>
-              <CartesianGrid vertical={false} stroke={colors.border} strokeDasharray="3 4" />
+              <CartesianGrid vertical={false} stroke={colors.border} />
               <XAxis
                 dataKey="t"
                 type="number"
@@ -107,7 +101,7 @@ export function PriceChart({ market }: { market: MarketDetail }) {
                 tick={{ fontSize: 11, fill: colors['fg-subtle'] }}
                 tickLine={false}
                 axisLine={false}
-                minTickGap={40}
+                minTickGap={48}
               />
               <YAxis
                 orientation="right"
@@ -117,7 +111,7 @@ export function PriceChart({ market }: { market: MarketDetail }) {
                 tick={{ fontSize: 11, fill: colors['fg-subtle'] }}
                 tickLine={false}
                 axisLine={false}
-                width={44}
+                width={40}
               />
               <Tooltip
                 content={props => <ChartTooltip active={props.active} payload={props.payload} />}
@@ -126,15 +120,33 @@ export function PriceChart({ market }: { market: MarketDetail }) {
               <Area
                 type="stepAfter"
                 dataKey="price"
-                stroke={stroke}
-                strokeWidth={2}
+                stroke={colors.primary}
+                strokeWidth={1.75}
                 fill={`url(#${gradientId})`}
                 isAnimationActive={false}
-                activeDot={{ r: 4, strokeWidth: 2, stroke: colors.surface, fill: stroke }}
+                activeDot={{ r: 3.5, strokeWidth: 2, stroke: colors.surface, fill: colors.primary }}
               />
             </AreaChart>
           </ResponsiveContainer>
         )}
+      </div>
+
+      <div className="mt-2 flex justify-end gap-1" role="tablist" aria-label="Chart range">
+        {INTERVALS.map(i => (
+          <button
+            key={i.value}
+            role="tab"
+            type="button"
+            aria-selected={interval === i.value}
+            onClick={() => setRange(i.value)}
+            className={cn(
+              'h-7 rounded px-2 text-xs font-semibold transition-colors',
+              interval === i.value ? 'bg-surface-3 text-fg' : 'text-muted hover:text-fg',
+            )}
+          >
+            {i.label}
+          </button>
+        ))}
       </div>
     </div>
   );
